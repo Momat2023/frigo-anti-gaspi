@@ -1,0 +1,6 @@
+{
+  "name": "frigo-anti-gaspi",
+  "compatibility_date": "2025-12-12",
+  "assets": { "directory": "./dist" }
+}
+
