@@ -5,8 +5,8 @@ export default function Header() {
     <header style={{ display: 'flex', gap: 12, padding: 12 }}>
       <Link to="/">Accueil</Link>
       <Link to="/add">Ajouter</Link>
+      <Link to="/scan">Scan</Link>
       <Link to="/settings">Réglages</Link>
     </header>
   )
 }
-
