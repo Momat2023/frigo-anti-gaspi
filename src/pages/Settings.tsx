@@ -16,6 +16,7 @@ import {
   showExpiryTestNotification,
 } from '../notifications/expiry'
 import { runExpiryAutoCheck } from '../notifications/autoCheck'
+import PwaPanel from '../ui/PwaPanel'
 
 type DaysMap = Record<Category, number>
 
@@ -226,6 +227,8 @@ export default function Settings() {
           <button onClick={onSave}>Enregistrer</button>
           <button onClick={onReset}>Réinitialiser</button>
         </div>
+
+        <PwaPanel />
 
         <hr />
 

@@ -11,11 +11,17 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>
 )
 
-// Démarre l'auto-check (Jour 16)
 startExpiryAutoCheckLoop()
 
-// Enregistre le service worker (Jour 16)
 if ('serviceWorker' in navigator) {
+  let refreshing = false
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return
+    refreshing = true
+    window.location.reload()
+  })
+
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {
       // ignore
