@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import Header from '../ui/Header'
 import { addItem, getSettings, newId } from '../data/db'
 import type { Category, Item, Location } from '../data/types'
@@ -7,21 +8,27 @@ import { CATEGORY_LABEL, DEFAULT_DAYS } from '../data/presets'
 type DaysMap = Record<Category, number>
 
 export default function AddItem() {
+  const [searchParams] = useSearchParams()
+
   const [name, setName] = useState('')
+  const [barcode, setBarcode] = useState('')
+
   const [location, setLocation] = useState<Location>('fridge')
   const [category, setCategory] = useState<Category>('cooked_dish')
 
-  // Durées par défaut (Settings)
   const [defaultDays, setDefaultDays] = useState<DaysMap>(DEFAULT_DAYS)
-
-  // Durée pour cet item (modifiable)
   const [targetDays, setTargetDays] = useState<number>(DEFAULT_DAYS.cooked_dish)
+
+  // Pré-remplir depuis l'URL (?barcode=...)
+  useEffect(() => {
+    const b = searchParams.get('barcode') ?? ''
+    if (b) setBarcode(b)
+  }, [searchParams])
 
   // Charger settings au montage
   useEffect(() => {
     getSettings().then((s) => {
       setDefaultDays(s.defaultDaysByCategory)
-      // synchroniser targetDays avec la catégorie actuelle
       setTargetDays(s.defaultDaysByCategory[category])
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -44,9 +51,11 @@ export default function AddItem() {
       targetDays: defaultDays[preset.category],
       status: 'active',
       createdAt: Date.now(),
+      ...(barcode.trim() ? { barcode: barcode.trim() } : {}),
     }
     await addItem(item)
     setName('')
+    setBarcode('')
     alert('Ajouté !')
   }
 
@@ -60,9 +69,11 @@ export default function AddItem() {
       targetDays,
       status: 'active',
       createdAt: Date.now(),
+      ...(barcode.trim() ? { barcode: barcode.trim() } : {}),
     }
     await addItem(item)
     setName('')
+    setBarcode('')
     alert('Ajouté !')
   }
 
@@ -71,6 +82,15 @@ export default function AddItem() {
       <Header />
       <main style={{ padding: 12, display: 'grid', gap: 12 }}>
         <h1>Ajouter</h1>
+
+        <label>
+          Code-barres (optionnel)
+          <input
+            value={barcode}
+            onChange={(e) => setBarcode(e.target.value)}
+            placeholder="EAN-13 / QR raw value"
+          />
+        </label>
 
         <label>
           Nom (optionnel)

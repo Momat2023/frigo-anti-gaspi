@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Header from '../ui/Header'
 
 type CamState = 'idle' | 'starting' | 'running' | 'error'
 
 export default function Scan() {
+  const navigate = useNavigate()
+
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -53,7 +56,6 @@ export default function Scan() {
     setState('idle')
   }
 
-  // Boucle detect toutes les 300ms via canvas
   useEffect(() => {
     if (state !== 'running') return
     if (detected) return
@@ -82,7 +84,7 @@ export default function Scan() {
           stopCamera()
         }
       } catch {
-        // silencieux (on ajoutera une UI d'erreur plus tard si besoin)
+        // ignore
       }
     }, 300)
 
@@ -96,7 +98,7 @@ export default function Scan() {
 
   function onUseCode() {
     if (!detected) return
-    alert(`Code: ${detected}`)
+    navigate(`/add?barcode=${encodeURIComponent(detected)}`)
   }
 
   return (
