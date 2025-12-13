@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../ui/Header'
+import { loadScanHistory, pushScanHistory } from '../data/scanHistory'
 
 type CamState = 'idle' | 'starting' | 'running' | 'error'
 
@@ -13,7 +14,14 @@ export default function Scan() {
 
   const [state, setState] = useState<CamState>('idle')
   const [error, setError] = useState<string | null>(null)
+
   const [detected, setDetected] = useState<string | null>(null)
+  const [manual, setManual] = useState('')
+  const [history, setHistory] = useState<string[]>(() => loadScanHistory())
+
+  const canVibrate = useMemo(() => typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function', [])
+  const canUseCamera = useMemo(() => !!navigator.mediaDevices?.getUserMedia, [])
+  const hasBarcodeDetector = useMemo(() => typeof (globalThis as any).BarcodeDetector !== 'undefined', [])
 
   async function startCamera() {
     try {
@@ -56,8 +64,20 @@ export default function Scan() {
     setState('idle')
   }
 
+  function acceptCode(code: string) {
+    const c = code.trim()
+    if (!c) return
+    setDetected(c)
+    pushScanHistory(c)
+    setHistory(loadScanHistory())
+    if (canVibrate) navigator.vibrate(50)
+    stopCamera()
+  }
+
+  // Scan loop
   useEffect(() => {
     if (state !== 'running') return
+    if (!hasBarcodeDetector) return
     if (detected) return
 
     const Detector = (globalThis as any).BarcodeDetector
@@ -79,31 +99,31 @@ export default function Scan() {
 
         const results = await detector.detect(canvas)
         const value = results?.[0]?.rawValue ?? null
-        if (value) {
-          setDetected(value)
-          stopCamera()
-        }
+        if (value) acceptCode(value)
       } catch {
-        // ignore
+        // ignore (fallback manuel)
       }
     }, 300)
 
     return () => window.clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, detected])
+  }, [state, detected, hasBarcodeDetector])
 
   useEffect(() => () => stopCamera(), [])
 
-  const canUseCamera = !!navigator.mediaDevices?.getUserMedia
-
-  function onUseCode() {
+  function useDetected() {
     if (!detected) return
     navigate(`/add?barcode=${encodeURIComponent(detected)}`)
   }
 
-  function onRescan() {
+  function rescan() {
     setDetected(null)
     startCamera()
+  }
+
+  function useManual() {
+    acceptCode(manual)
+    if (manual.trim()) navigate(`/add?barcode=${encodeURIComponent(manual.trim())}`)
   }
 
   return (
@@ -118,30 +138,59 @@ export default function Scan() {
               Détecté : <strong>{detected}</strong>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button onClick={onUseCode}>Utiliser ce code</button>
-              <button onClick={onRescan}>Rescanner</button>
+              <button onClick={useDetected}>Utiliser ce code</button>
+              <button onClick={rescan}>Rescanner</button>
             </div>
+          </div>
+        )}
+
+        {!hasBarcodeDetector && (
+          <div style={{ fontSize: 12, opacity: 0.75 }}>
+            BarcodeDetector non disponible (polyfill devrait le fournir; sinon on passe en saisie manuelle).
           </div>
         )}
 
         <div style={{ background: '#111', borderRadius: 12, overflow: 'hidden' }}>
           <video
             ref={videoRef}
-            style={{ width: '100%', height: '50vh', objectFit: 'cover', display: 'block' }}
+            style={{ width: '100%', height: '45vh', objectFit: 'cover', display: 'block' }}
             muted
           />
         </div>
 
         <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={startCamera} disabled={!canUseCamera || state === 'starting' || state === 'running'}>
             {state === 'starting' ? 'Démarrage…' : 'Démarrer'}
           </button>
           <button onClick={stopCamera} disabled={state !== 'running'}>
             Stop
           </button>
+          <button onClick={() => acceptCode(manual)} disabled={!manual.trim()}>
+            Valider saisie
+          </button>
         </div>
+
+        <label>
+          Saisie manuelle (si scan difficile)
+          <input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="EAN-13 / QR raw value" />
+        </label>
+
+        <button onClick={useManual} disabled={!manual.trim()}>
+          Utiliser la saisie
+        </button>
+
+        {history.length > 0 && (
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ fontSize: 12, opacity: 0.75 }}>Historique</div>
+            {history.map((c) => (
+              <button key={c} onClick={() => setManual(c)} style={{ textAlign: 'left' }}>
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
 
         {error && <div style={{ color: 'crimson' }}>Erreur : {error}</div>}
       </main>
