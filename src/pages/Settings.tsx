@@ -17,6 +17,7 @@ import {
 } from '../notifications/expiry'
 import { runExpiryAutoCheck } from '../notifications/autoCheck'
 import PwaPanel from '../ui/PwaPanel'
+import { factoryResetThisDevice } from '../utils/factoryReset'
 
 type DaysMap = Record<Category, number>
 
@@ -195,6 +196,27 @@ export default function Settings() {
     alert(JSON.stringify(r, null, 2))
   }
 
+
+  async function onFactoryReset() {
+    const ok = confirm(
+      "Cette action va:\n" +
+      "- Effacer les données locales (IndexedDB, localStorage)\n" +
+      "- Vider les caches offline\n" +
+      "- Désinstaller les service workers sur cet appareil\n\n" +
+      "Les autres appareils ne sont pas impactés.\n\n" +
+      "Continuer ?"
+    )
+    if (!ok) return
+
+    try {
+      await factoryResetThisDevice()
+      alert("Réinitialisation terminée. L’app va recharger.")
+      window.location.reload()
+    } catch (e: any) {
+      alert(e?.message ?? "Impossible de réinitialiser complètement.")
+    }
+  }
+
   if (loading) {
     return (
       <>
@@ -337,7 +359,19 @@ export default function Settings() {
         <button onClick={onImport} disabled={importBusy || !importText}>
           {importBusy ? 'Import…' : 'Importer'}
         </button>
-      </main>
+      
+        <hr />
+
+        <section style={{ display: 'grid', gap: 8 }}>
+          <h2>Debug / Reset</h2>
+          <p style={{ fontSize: 12, opacity: 0.75 }}>
+            Réinitialise complètement cet appareil : données locales, caches, service workers.
+            Utilise-le seulement si l’app semble bloquée ou corrompue sur ce device.
+          </p>
+          <button onClick={onFactoryReset}>Réinitialiser cet appareil</button>
+        </section>
+
+</main>
     </>
   )
 }
