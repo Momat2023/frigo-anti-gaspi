@@ -1,22 +1,67 @@
 import { getDb, getSettings } from './db'
 import type { Item, Settings } from './types'
+import { loadScanHistory } from './scanHistory'
+import { getDeviceId } from './device'
+
+export type ExportOptions = {
+  includeArchived: boolean
+  includeSettings: boolean
+  includeScanHistory: boolean
+}
 
 export type ExportBlobV1 = {
   schemaVersion: 1
   exportedAt: number
+  deviceId: string
   items: Item[]
-  settings: Settings
+  settings?: Settings
+  scanHistory?: string[]
 }
 
-export async function exportDataV1(): Promise<ExportBlobV1> {
-  const db = await getDb()
-  const items = await db.getAll('items')
-  const settings = await getSettings()
+function isArchivedItem(x: any): boolean {
+  // tolérant: on couvre plusieurs noms possibles selon l’évolution du modèle
+  return Boolean(
+    x?.archivedAt ||
+      x?.consumedAt ||
+      x?.doneAt ||
+      x?.deletedAt ||
+      x?.isArchived === true ||
+      x?.status === 'archived' ||
+      x?.status === 'done' ||
+      x?.state === 'archived' ||
+      x?.state === 'done'
+  )
+}
 
-  return {
+export async function exportDataV1(opts: ExportOptions): Promise<ExportBlobV1> {
+  const db = await getDb()
+  const all = await db.getAll('items')
+  const items = opts.includeArchived ? all : all.filter((x) => !isArchivedItem(x))
+
+  const out: ExportBlobV1 = {
     schemaVersion: 1,
     exportedAt: Date.now(),
+    deviceId: getDeviceId(),
     items,
-    settings,
+  }
+
+  if (opts.includeSettings) out.settings = await getSettings()
+  if (opts.includeScanHistory) out.scanHistory = loadScanHistory()
+
+  return out
+}
+
+export async function exportPreview(opts: ExportOptions) {
+  const db = await getDb()
+  const all = await db.getAll('items')
+  const archived = all.filter((x) => isArchivedItem(x)).length
+  const included = opts.includeArchived ? all.length : all.length - archived
+
+  return {
+    totalItems: all.length,
+    archivedItems: archived,
+    includedItems: included,
+    scanHistoryCount: opts.includeScanHistory ? loadScanHistory().length : 0,
+    includesSettings: opts.includeSettings,
   }
 }
