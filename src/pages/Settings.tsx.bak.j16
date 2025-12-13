@@ -15,7 +15,6 @@ import {
   requestNotificationPermission,
   showExpiryTestNotification,
 } from '../notifications/expiry'
-import { runExpiryAutoCheck } from '../notifications/autoCheck'
 
 type DaysMap = Record<Category, number>
 
@@ -188,12 +187,6 @@ export default function Settings() {
     }
   }
 
-
-  async function onRunAutoCheckNow() {
-    const r = await runExpiryAutoCheck(0) // cooldown=0 pour test immédiat
-    alert(JSON.stringify(r, null, 2))
-  }
-
   if (loading) {
     return (
       <>
@@ -250,7 +243,6 @@ export default function Settings() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={onRequestNotifPermission}>Demander / mettre à jour l’autorisation</button>
           <button onClick={onTestExpiryNotification}>Tester la notif “proche de la date”</button>
-          <button onClick={onRunAutoCheckNow}>Run auto-check (debug)</button>
         </div>
 
         <hr />
