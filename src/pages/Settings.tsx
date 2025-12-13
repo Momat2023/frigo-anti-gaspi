@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Header from '../ui/Header'
 import { getSettings, saveSettings } from '../data/db'
 import { CATEGORY_LABEL, DEFAULT_DAYS } from '../data/presets'
@@ -7,6 +7,7 @@ import { clampInt } from '../utils/number'
 import { exportDataV1, exportPreview } from '../data/export'
 import { downloadJsonFile } from '../utils/download'
 import { exportFilename } from '../utils/filename'
+import { importDataFromText, type ImportMode } from '../data/import'
 
 type DaysMap = Record<Category, number>
 
@@ -27,14 +28,14 @@ export default function Settings() {
     includesSettings: boolean
   } | null>(null)
 
-  const categories = useMemo(() => Object.keys(CATEGORY_LABEL) as Category[], [])
+  // Import
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  const [importMode, setImportMode] = useState<ImportMode>('merge')
+  const [importBusy, setImportBusy] = useState(false)
 
+  const categories = useMemo(() => Object.keys(CATEGORY_LABEL) as Category[], [])
   const opts = useMemo(
-    () => ({
-      includeArchived,
-      includeSettings: includeSettingsOpt,
-      includeScanHistory,
-    }),
+    () => ({ includeArchived, includeSettings: includeSettingsOpt, includeScanHistory }),
     [includeArchived, includeSettingsOpt, includeScanHistory]
   )
 
@@ -45,7 +46,6 @@ export default function Settings() {
   }, [])
 
   useEffect(() => {
-    // preview refresh on option changes
     exportPreview(opts).then(setPreview)
   }, [opts])
 
@@ -73,17 +73,50 @@ export default function Settings() {
     const json = JSON.stringify(data, null, 2)
 
     const file = new File([json], filename, { type: 'application/json' })
-    const shareData: any = {
-      title: 'Export Frigo Anti-Gaspi',
-      text: "Export JSON (foyer).",
-      files: [file],
-    }
+    const shareData: any = { title: 'Export Frigo Anti-Gaspi', text: 'Export JSON (foyer).', files: [file] }
 
     if (navigator.canShare && navigator.canShare(shareData) && navigator.share) {
       await navigator.share(shareData)
     } else {
       downloadJsonFile(filename, data)
       alert("Partage non disponible: export téléchargé à la place.")
+    }
+  }
+
+  async function onImport() {
+    const input = fileRef.current
+    const file = input?.files?.[0]
+    if (!file) return alert('Choisis un fichier .json à importer.')
+
+    const msg =
+      importMode === 'replace'
+        ? "Mode 'Remplacer' : tous les items existants seront supprimés puis remplacés."
+        : "Mode 'Fusionner' : les items seront ajoutés/mis à jour."
+    if (!confirm(`${msg}\n\nContinuer ?`)) return
+
+    setImportBusy(true)
+    try {
+      const reader = new FileReader()
+      const text: string = await new Promise((resolve, reject) => {
+        reader.addEventListener('loadend', () => {
+          const res = reader.result
+          if (typeof res === 'string') resolve(res)
+          else reject(new Error('Lecture du fichier impossible.'))
+        })
+        reader.addEventListener('error', () => reject(new Error('Erreur de lecture fichier.')))
+        reader.readAsText(file)
+      })
+
+      const r = await importDataFromText(text, importMode)
+      alert(
+        `Import OK.\nItems: ${r.itemsWritten}/${r.itemsProcessed}\nRéglages: ${r.settingsImported ? 'oui' : 'non'}\nScan history: ${r.scanHistoryImported ? 'oui' : 'non'}`
+      )
+      window.location.reload()
+    } catch (e: any) {
+      alert(e?.message ?? 'Import impossible')
+    } finally {
+      setImportBusy(false)
+      if (fileRef.current) fileRef.current.value = ''
     }
   }
 
@@ -101,10 +134,6 @@ export default function Settings() {
       <Header />
       <main style={{ padding: 12, display: 'grid', gap: 12 }}>
         <h1>Réglages</h1>
-
-        <p style={{ fontSize: 12, opacity: 0.75 }}>
-          Ces durées sont des valeurs par défaut pour les nouveaux aliments.
-        </p>
 
         {categories.map((cat) => (
           <label key={cat} style={{ display: 'grid', gap: 6 }}>
@@ -128,51 +157,53 @@ export default function Settings() {
 
         <h2>Foyer (export)</h2>
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              type="checkbox"
-              checked={includeArchived}
-              onChange={(e) => setIncludeArchived(e.target.checked)}
-            />
-            Inclure l’historique (archivés)
-          </label>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="checkbox" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} />
+          Inclure l’historique (archivés)
+        </label>
 
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              type="checkbox"
-              checked={includeSettingsOpt}
-              onChange={(e) => setIncludeSettingsOpt(e.target.checked)}
-            />
-            Inclure les réglages
-          </label>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="checkbox" checked={includeSettingsOpt} onChange={(e) => setIncludeSettingsOpt(e.target.checked)} />
+          Inclure les réglages
+        </label>
 
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              type="checkbox"
-              checked={includeScanHistory}
-              onChange={(e) => setIncludeScanHistory(e.target.checked)}
-            />
-            Inclure l’historique de scan
-          </label>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="checkbox" checked={includeScanHistory} onChange={(e) => setIncludeScanHistory(e.target.checked)} />
+          Inclure l’historique de scan
+        </label>
 
-          {preview && (
-            <div style={{ fontSize: 12, opacity: 0.8 }}>
-              Items: {preview.includedItems} (total {preview.totalItems}, archivés {preview.archivedItems})<br />
-              Scan history: {preview.scanHistoryCount}<br />
-              Réglages: {preview.includesSettings ? 'oui' : 'non'}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={onExportDownload}>Exporter (télécharger)</button>
-            <button onClick={onExportShare}>Exporter (partager)</button>
+        {preview && (
+          <div style={{ fontSize: 12, opacity: 0.8 }}>
+            Items: {preview.includedItems} (total {preview.totalItems}, archivés {preview.archivedItems})<br />
+            Scan history: {preview.scanHistoryCount}<br />
+            Réglages: {preview.includesSettings ? 'oui' : 'non'}
           </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={onExportDownload}>Exporter (télécharger)</button>
+          <button onClick={onExportShare}>Exporter (partager)</button>
         </div>
 
-        <p style={{ fontSize: 12, opacity: 0.75 }}>
-          Import + fusion/remplacement au Jour 13.
-        </p>
+        <hr />
+
+        <h2>Foyer (import)</h2>
+
+        <input ref={fileRef} type="file" accept=".json,application/json" />
+
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="radio" name="importMode" checked={importMode === 'merge'} onChange={() => setImportMode('merge')} />
+          Fusionner (recommandé)
+        </label>
+
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="radio" name="importMode" checked={importMode === 'replace'} onChange={() => setImportMode('replace')} />
+          Remplacer (dangereux)
+        </label>
+
+        <button onClick={onImport} disabled={importBusy}>
+          {importBusy ? 'Import…' : 'Importer'}
+        </button>
       </main>
     </>
   )

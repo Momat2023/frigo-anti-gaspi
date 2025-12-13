@@ -21,3 +21,15 @@ export function pushScanHistory(code: string) {
   const next = [c, ...current.filter((x) => x !== c)].slice(0, MAX)
   localStorage.setItem(KEY, JSON.stringify(next))
 }
+
+export function setScanHistory(codes: string[]) {
+  const cleaned = (Array.isArray(codes) ? codes : [])
+    .filter((x) => typeof x === 'string')
+    .map((x) => x.trim())
+    .filter(Boolean)
+
+  const uniq: string[] = []
+  for (const c of cleaned) if (!uniq.includes(c)) uniq.push(c)
+
+  localStorage.setItem(KEY, JSON.stringify(uniq.slice(0, MAX)))
+}
