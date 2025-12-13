@@ -4,6 +4,8 @@ import { getSettings, saveSettings } from '../data/db'
 import { CATEGORY_LABEL, DEFAULT_DAYS } from '../data/presets'
 import type { Category } from '../data/types'
 import { clampInt } from '../utils/number'
+import { exportDataV1 } from '../data/export'
+import { downloadJsonFile } from '../utils/download'
 
 type DaysMap = Record<Category, number>
 
@@ -34,6 +36,35 @@ export default function Settings() {
 
   function onReset() {
     setDays(DEFAULT_DAYS)
+  }
+
+  async function onExportDownload() {
+    const data = await exportDataV1()
+    const yyyyMmDd = new Date().toISOString().slice(0, 10)
+    downloadJsonFile(`frigo-export-${yyyyMmDd}.json`, data)
+  }
+
+  async function onExportShare() {
+    const data = await exportDataV1()
+    const yyyyMmDd = new Date().toISOString().slice(0, 10)
+    const filename = `frigo-export-${yyyyMmDd}.json`
+    const json = JSON.stringify(data, null, 2)
+
+    // Partage fichier (progressive enhancement) [web:752][web:761]
+    const file = new File([json], filename, { type: 'application/json' })
+    const shareData: any = {
+      title: 'Export Frigo Anti-Gaspi',
+      text: 'Voici l’export JSON (items + réglages).',
+      files: [file],
+    }
+
+    if (navigator.canShare && navigator.canShare(shareData) && navigator.share) {
+      await navigator.share(shareData)
+    } else {
+      // fallback: téléchargement
+      downloadJsonFile(filename, data)
+      alert("Partage non disponible: fichier téléchargé à la place.")
+    }
   }
 
   if (loading) {
@@ -71,10 +102,23 @@ export default function Settings() {
           </label>
         ))}
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={onSave}>Enregistrer</button>
           <button onClick={onReset}>Réinitialiser</button>
         </div>
+
+        <hr />
+
+        <h2>Foyer (export/import)</h2>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={onExportDownload}>Exporter (télécharger)</button>
+          <button onClick={onExportShare}>Exporter (partager)</button>
+        </div>
+
+        <p style={{ fontSize: 12, opacity: 0.75 }}>
+          L’import sera ajouté au Jour 13.
+        </p>
       </main>
     </>
   )
