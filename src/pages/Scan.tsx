@@ -101,11 +101,28 @@ export default function Scan() {
     navigate(`/add?barcode=${encodeURIComponent(detected)}`)
   }
 
+  function onRescan() {
+    setDetected(null)
+    startCamera()
+  }
+
   return (
     <>
       <Header />
       <main style={{ padding: 12, display: 'grid', gap: 12 }}>
         <h1>Scan</h1>
+
+        {detected && (
+          <div style={{ border: '1px solid #ddd', borderRadius: 12, padding: 12 }}>
+            <div>
+              Détecté : <strong>{detected}</strong>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button onClick={onUseCode}>Utiliser ce code</button>
+              <button onClick={onRescan}>Rescanner</button>
+            </div>
+          </div>
+        )}
 
         <div style={{ background: '#111', borderRadius: 12, overflow: 'hidden' }}>
           <video
@@ -125,15 +142,6 @@ export default function Scan() {
             Stop
           </button>
         </div>
-
-        {detected && (
-          <div style={{ display: 'grid', gap: 8 }}>
-            <div>
-              Détecté : <strong>{detected}</strong>
-            </div>
-            <button onClick={onUseCode}>Utiliser ce code</button>
-          </div>
-        )}
 
         {error && <div style={{ color: 'crimson' }}>Erreur : {error}</div>}
       </main>
