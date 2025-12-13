@@ -5,31 +5,23 @@ type CamState = 'idle' | 'starting' | 'running' | 'error'
 
 export default function Scan() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-
-  // Loop control
-  const rafRef = useRef<number | null>(null)
-  const detectingRef = useRef(false)
-
-  // “Stabilisation” simple (même valeur vue plusieurs fois)
-  const lastValueRef = useRef<string | null>(null)
-  const sameCountRef = useRef(0)
 
   const [state, setState] = useState<CamState>('idle')
   const [error, setError] = useState<string | null>(null)
 
-  const [supported, setSupported] = useState<string[]>([])
+  const [supported, setSupported] = useState<string[] | null>(null)
+  const [detectError, setDetectError] = useState<string | null>(null)
   const [detected, setDetected] = useState<string | null>(null)
 
-  const canUseBarcodeDetector = useMemo(() => typeof (globalThis as any).BarcodeDetector !== 'undefined', [])
+  const hasBarcodeDetector = useMemo(() => typeof (globalThis as any).BarcodeDetector !== 'undefined', [])
 
   async function startCamera() {
     try {
       setError(null)
+      setDetectError(null)
       setDetected(null)
-      lastValueRef.current = null
-      sameCountRef.current = 0
-
       setState('starting')
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -40,11 +32,7 @@ export default function Scan() {
       streamRef.current = stream
 
       const video = videoRef.current
-      if (!video) {
-        setState('error')
-        setError('Video element introuvable')
-        return
-      }
+      if (!video) throw new Error('Video element introuvable')
 
       video.srcObject = stream
       video.playsInline = true
@@ -58,10 +46,6 @@ export default function Scan() {
   }
 
   function stopCamera() {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    rafRef.current = null
-    detectingRef.current = false
-
     const stream = streamRef.current
     if (stream) stream.getTracks().forEach((t) => t.stop())
     streamRef.current = null
@@ -75,85 +59,67 @@ export default function Scan() {
     setState('idle')
   }
 
-  // Charger formats supportés (natif)
+  // Afficher formats supportés (ou l'erreur)
   useEffect(() => {
-    if (!canUseBarcodeDetector) return
-    // getSupportedFormats() renvoie un tableau des formats supportés [web:490]
+    if (!hasBarcodeDetector) {
+      setSupported(null)
+      return
+    }
     ;(globalThis as any).BarcodeDetector.getSupportedFormats()
       .then((fmts: string[]) => setSupported(fmts))
-      .catch(() => setSupported([]))
-  }, [canUseBarcodeDetector])
+      .catch((e: any) => {
+        setSupported([])
+        setDetectError(`getSupportedFormats() a échoué: ${e?.message ?? String(e)}`)
+      })
+  }, [hasBarcodeDetector])
 
-  // Loop de détection quand la caméra tourne
+  // Loop simple toutes les 300ms via canvas (souvent plus fiable que detect(video) selon devices)
   useEffect(() => {
     if (state !== 'running') return
-    if (!canUseBarcodeDetector) return
-    if (!videoRef.current) return
+    if (!hasBarcodeDetector) return
     if (detected) return
 
-    const formats = supported.filter((f) => f === 'ean_13' || f === 'qr_code')
     const Detector = (globalThis as any).BarcodeDetector
-    const detector = new Detector({ formats: formats.length ? formats : undefined })
+    let detector: any
+    try {
+      detector = new Detector({ formats: ['qr_code', 'ean_13'] })
+    } catch (e: any) {
+      setDetectError(`Constructor BarcodeDetector a échoué: ${e?.message ?? String(e)}`)
+      return
+    }
 
-    const tick = async () => {
-      rafRef.current = requestAnimationFrame(tick)
-
-      if (detectingRef.current) return
-      if (detected) return
-
-      const video = videoRef.current
-      if (!video) return
-      if (video.readyState < 2) return // pas assez de data
-
-      detectingRef.current = true
+    const timer = window.setInterval(async () => {
       try {
-        // detect() accepte HTMLVideoElement et renvoie des barcodes avec rawValue [web:590]
-        const barcodes = await detector.detect(video)
-        const value = barcodes?.[0]?.rawValue ?? null
+        const video = videoRef.current
+        const canvas = canvasRef.current
+        if (!video || !canvas) return
+        if (video.readyState < 2) return
+        if (!video.videoWidth || !video.videoHeight) return
 
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+        const results = await detector.detect(canvas)
+        const value = results?.[0]?.rawValue ?? null
         if (value) {
-          if (lastValueRef.current === value) {
-            sameCountRef.current += 1
-          } else {
-            lastValueRef.current = value
-            sameCountRef.current = 1
-          }
-
-          // “stabilisé” si vu 3 fois
-          if (sameCountRef.current >= 3) {
-            setDetected(value)
-            stopCamera()
-          }
+          setDetected(value)
+          stopCamera()
         }
-      } catch {
-        // ignore (certains devices jettent parfois pendant la lecture)
-      } finally {
-        detectingRef.current = false
+      } catch (e: any) {
+        setDetectError(`detect() a échoué: ${e?.message ?? String(e)}`)
       }
-    }
+    }, 300)
 
-    rafRef.current = requestAnimationFrame(tick)
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      rafRef.current = null
-      detectingRef.current = false
-    }
-  }, [state, canUseBarcodeDetector, supported, detected])
-
-  // Nettoyage quand on quitte la page
-  useEffect(() => {
-    return () => stopCamera()
+    return () => window.clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [state, hasBarcodeDetector, detected])
 
-  const canUseCamera = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia
+  useEffect(() => () => stopCamera(), [])
 
-  function onUseCode() {
-    if (!detected) return
-    // J9: on fera /add?barcode=... ; pour l’instant on montre juste la valeur
-    alert(`Code: ${detected}`)
-  }
+  const canUseCamera = !!navigator.mediaDevices?.getUserMedia
 
   return (
     <>
@@ -161,21 +127,13 @@ export default function Scan() {
       <main style={{ padding: 12, display: 'grid', gap: 12 }}>
         <h1>Scan</h1>
 
-        {!canUseCamera && (
-          <p>Caméra non disponible (HTTPS ou localhost requis).</p>
-        )}
-
-        {canUseCamera && !canUseBarcodeDetector && (
-          <p>
-            BarcodeDetector non supporté sur ce navigateur. (Jour 8: on ajoutera le polyfill.)
-          </p>
-        )}
-
-        {canUseBarcodeDetector && supported.length > 0 && (
-          <div style={{ fontSize: 12, opacity: 0.75 }}>
-            Formats supportés: {supported.join(', ')}
-          </div>
-        )}
+        <div style={{ fontSize: 12, opacity: 0.75 }}>
+          Camera API: {canUseCamera ? 'OK' : 'NON'}
+          <br />
+          BarcodeDetector: {hasBarcodeDetector ? 'OK' : 'NON'}
+          <br />
+          Formats: {supported === null ? '(n/a)' : supported.length ? supported.join(', ') : '(vide)'}
+        </div>
 
         <div style={{ background: '#111', borderRadius: 12, overflow: 'hidden' }}>
           <video
@@ -184,6 +142,8 @@ export default function Scan() {
             muted
           />
         </div>
+
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={startCamera} disabled={!canUseCamera || state === 'starting' || state === 'running'}>
@@ -194,16 +154,9 @@ export default function Scan() {
           </button>
         </div>
 
-        {detected && (
-          <div style={{ display: 'grid', gap: 8 }}>
-            <div>
-              Détecté : <strong>{detected}</strong>
-            </div>
-            <button onClick={onUseCode}>Utiliser ce code</button>
-          </div>
-        )}
-
-        {error && <div style={{ color: 'crimson' }}>Erreur : {error}</div>}
+        {detected && <div>Détecté : <strong>{detected}</strong></div>}
+        {error && <div style={{ color: 'crimson' }}>Caméra: {error}</div>}
+        {detectError && <div style={{ color: 'crimson' }}>Détection: {detectError}</div>}
       </main>
     </>
   )
