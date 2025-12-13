@@ -1,11 +1,12 @@
 export type Location = 'fridge' | 'freezer'
 export type ItemStatus = 'active' | 'eaten' | 'thrown'
 
+// Catégories simples (tu peux en ajouter après)
 export type Category =
-  | 'cooked_dish'
+  | 'cooked_dish' // plat cuisiné (œufs/viande/légumes)
   | 'soup'
   | 'cooked_fish_poultry'
-  | 'meat_sauce'
+  | 'meat_sauce' // bouillon/fond/sauce de viande
 
 export type Item = {
   id: string
@@ -16,14 +17,5 @@ export type Item = {
   targetDays: number
   status: ItemStatus
   createdAt: number
-
-  // V2+
-  barcode?: string
-  ownerName?: string
 }
 
-export type Settings = {
-  key: 'main'
-  defaultDaysByCategory: Record<Category, number>
-  updatedAt: number
-}

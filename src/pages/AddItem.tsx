@@ -1,19 +1,38 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Header from '../ui/Header'
-import { addItem, newId } from '../data/db'
+import { addItem, getSettings, newId } from '../data/db'
 import type { Category, Item, Location } from '../data/types'
 import { CATEGORY_LABEL, DEFAULT_DAYS } from '../data/presets'
+
+type DaysMap = Record<Category, number>
 
 export default function AddItem() {
   const [name, setName] = useState('')
   const [location, setLocation] = useState<Location>('fridge')
   const [category, setCategory] = useState<Category>('cooked_dish')
+
+  // Durées par défaut (Settings)
+  const [defaultDays, setDefaultDays] = useState<DaysMap>(DEFAULT_DAYS)
+
+  // Durée pour cet item (modifiable)
   const [targetDays, setTargetDays] = useState<number>(DEFAULT_DAYS.cooked_dish)
 
-  // Quand la catégorie change, on propose une durée par défaut
-  useMemo(() => {
-    setTargetDays(DEFAULT_DAYS[category])
-  }, [category])
+  // Charger settings au montage
+  useEffect(() => {
+    getSettings().then((s) => {
+      setDefaultDays(s.defaultDaysByCategory)
+      // synchroniser targetDays avec la catégorie actuelle
+      setTargetDays(s.defaultDaysByCategory[category])
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Quand catégorie change -> proposer la durée par défaut
+  useEffect(() => {
+    setTargetDays(defaultDays[category])
+  }, [category, defaultDays])
+
+  const categories = useMemo(() => Object.keys(CATEGORY_LABEL) as Category[], [])
 
   async function quickAdd(preset: { name: string; category: Category }) {
     const item: Item = {
@@ -22,7 +41,7 @@ export default function AddItem() {
       category: preset.category,
       location,
       openedAt: Date.now(),
-      targetDays: DEFAULT_DAYS[preset.category],
+      targetDays: defaultDays[preset.category],
       status: 'active',
       createdAt: Date.now(),
     }
@@ -51,7 +70,7 @@ export default function AddItem() {
     <>
       <Header />
       <main style={{ padding: 12, display: 'grid', gap: 12 }}>
-        <h1>Ajouter (rapide)</h1>
+        <h1>Ajouter</h1>
 
         <label>
           Nom (optionnel)
@@ -71,16 +90,18 @@ export default function AddItem() {
         </label>
 
         <div style={{ display: 'grid', gap: 8 }}>
-          <strong>Ajout en 1 tap</strong>
+          <strong>Ajout rapide</strong>
           <button onClick={() => quickAdd({ name: 'Plat cuisiné', category: 'cooked_dish' })}>
-            Restes / plat cuisiné
+            Restes / plat cuisiné (J+{defaultDays.cooked_dish})
           </button>
-          <button onClick={() => quickAdd({ name: 'Soupe', category: 'soup' })}>Soupe</button>
+          <button onClick={() => quickAdd({ name: 'Soupe', category: 'soup' })}>
+            Soupe (J+{defaultDays.soup})
+          </button>
           <button onClick={() => quickAdd({ name: 'Poisson/volaille cuits', category: 'cooked_fish_poultry' })}>
-            Poisson / volaille cuits
+            Poisson / volaille cuits (J+{defaultDays.cooked_fish_poultry})
           </button>
           <button onClick={() => quickAdd({ name: 'Sauce viande', category: 'meat_sauce' })}>
-            Sauce / bouillon viande
+            Sauce / bouillon viande (J+{defaultDays.meat_sauce})
           </button>
         </div>
 
@@ -90,12 +111,11 @@ export default function AddItem() {
 
         <label>
           Catégorie
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as Category)}
-          >
-            {Object.entries(CATEGORY_LABEL).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
+          <select value={category} onChange={(e) => setCategory(e.target.value as Category)}>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {CATEGORY_LABEL[cat]}
+              </option>
             ))}
           </select>
         </label>
@@ -112,12 +132,7 @@ export default function AddItem() {
         </label>
 
         <button onClick={onSave}>Enregistrer</button>
-
-        <p style={{ fontSize: 12, opacity: 0.75 }}>
-          Les durées proposées sont des repères; toujours vérifier l’odeur/aspect et respecter la chaîne du froid. [web:217]
-        </p>
       </main>
     </>
   )
 }
-

@@ -1,11 +1,81 @@
+import { useEffect, useMemo, useState } from 'react'
 import Header from '../ui/Header'
+import { getSettings, saveSettings } from '../data/db'
+import { CATEGORY_LABEL, DEFAULT_DAYS } from '../data/presets'
+import type { Category } from '../data/types'
+import { clampInt } from '../utils/number'
+
+type DaysMap = Record<Category, number>
 
 export default function Settings() {
+  const [loading, setLoading] = useState(true)
+  const [days, setDays] = useState<DaysMap>(DEFAULT_DAYS)
+
+  const categories = useMemo(() => Object.keys(CATEGORY_LABEL) as Category[], [])
+
+  useEffect(() => {
+    getSettings()
+      .then((s) => {
+        setDays(s.defaultDaysByCategory)
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  function setDay(cat: Category, value: number) {
+    setDays((prev) => ({ ...prev, [cat]: value }))
+  }
+
+  async function onSave() {
+    await saveSettings({
+      defaultDaysByCategory: days,
+    })
+    alert('Réglages enregistrés')
+  }
+
+  function onReset() {
+    setDays(DEFAULT_DAYS)
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <main style={{ padding: 12 }}>Chargement…</main>
+      </>
+    )
+  }
+
   return (
     <>
       <Header />
-      <main style={{ padding: 12 }}>Réglages</main>
+      <main style={{ padding: 12, display: 'grid', gap: 12 }}>
+        <h1>Réglages</h1>
+
+        <p style={{ fontSize: 12, opacity: 0.75 }}>
+          Ces durées sont des valeurs par défaut pour les nouveaux aliments. Tu peux toujours les changer pour un aliment précis.
+        </p>
+
+        {categories.map((cat) => (
+          <label key={cat} style={{ display: 'grid', gap: 6 }}>
+            {CATEGORY_LABEL[cat]}
+            <input
+              type="number"
+              min={1}
+              max={30}
+              value={days[cat]}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                setDay(cat, clampInt(n, 1, 30))
+              }}
+            />
+          </label>
+        ))}
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onSave}>Enregistrer</button>
+          <button onClick={onReset}>Réinitialiser</button>
+        </div>
+      </main>
     </>
   )
 }
-
