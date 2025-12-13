@@ -18,6 +18,7 @@ import {
 import { runExpiryAutoCheck } from '../notifications/autoCheck'
 import PwaPanel from '../ui/PwaPanel'
 import { factoryResetThisDevice } from '../utils/factoryReset'
+import DiagnosticsPanel from '../ui/DiagnosticsPanel'
 
 type DaysMap = Record<Category, number>
 
@@ -370,6 +371,11 @@ export default function Settings() {
           </p>
           <button onClick={onFactoryReset}>Réinitialiser cet appareil</button>
         </section>
+
+
+        <hr />
+
+        <DiagnosticsPanel />
 
 </main>
     </>
