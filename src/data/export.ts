@@ -18,25 +18,15 @@ export type ExportBlobV1 = {
   scanHistory?: string[]
 }
 
-function isArchivedItem(x: any): boolean {
-  // tolérant: on couvre plusieurs noms possibles selon l’évolution du modèle
-  return Boolean(
-    x?.archivedAt ||
-      x?.consumedAt ||
-      x?.doneAt ||
-      x?.deletedAt ||
-      x?.isArchived === true ||
-      x?.status === 'archived' ||
-      x?.status === 'done' ||
-      x?.state === 'archived' ||
-      x?.state === 'done'
-  )
+function isArchivedItem(x: Item): boolean {
+  // tout ce qui n'est plus "active" est considéré comme historique
+  return x.status !== 'active'
 }
 
 export async function exportDataV1(opts: ExportOptions): Promise<ExportBlobV1> {
   const db = await getDb()
   const all = await db.getAll('items')
-  const items = opts.includeArchived ? all : all.filter((x) => !isArchivedItem(x))
+  const items = opts.includeArchived ? all : all.filter((x) => !isArchivedItem(x as Item))
 
   const out: ExportBlobV1 = {
     schemaVersion: 1,
@@ -54,7 +44,7 @@ export async function exportDataV1(opts: ExportOptions): Promise<ExportBlobV1> {
 export async function exportPreview(opts: ExportOptions) {
   const db = await getDb()
   const all = await db.getAll('items')
-  const archived = all.filter((x) => isArchivedItem(x)).length
+  const archived = all.filter((x) => isArchivedItem(x as Item)).length
   const included = opts.includeArchived ? all.length : all.length - archived
 
   return {
