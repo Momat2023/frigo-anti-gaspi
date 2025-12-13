@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Header from '../ui/Header'
 
 type CamState = 'idle' | 'starting' | 'running' | 'error'
@@ -10,17 +10,11 @@ export default function Scan() {
 
   const [state, setState] = useState<CamState>('idle')
   const [error, setError] = useState<string | null>(null)
-
-  const [supported, setSupported] = useState<string[] | null>(null)
-  const [detectError, setDetectError] = useState<string | null>(null)
   const [detected, setDetected] = useState<string | null>(null)
-
-  const hasBarcodeDetector = useMemo(() => typeof (globalThis as any).BarcodeDetector !== 'undefined', [])
 
   async function startCamera() {
     try {
       setError(null)
-      setDetectError(null)
       setDetected(null)
       setState('starting')
 
@@ -59,34 +53,13 @@ export default function Scan() {
     setState('idle')
   }
 
-  // Afficher formats supportés (ou l'erreur)
-  useEffect(() => {
-    if (!hasBarcodeDetector) {
-      setSupported(null)
-      return
-    }
-    ;(globalThis as any).BarcodeDetector.getSupportedFormats()
-      .then((fmts: string[]) => setSupported(fmts))
-      .catch((e: any) => {
-        setSupported([])
-        setDetectError(`getSupportedFormats() a échoué: ${e?.message ?? String(e)}`)
-      })
-  }, [hasBarcodeDetector])
-
-  // Loop simple toutes les 300ms via canvas (souvent plus fiable que detect(video) selon devices)
+  // Boucle detect toutes les 300ms via canvas
   useEffect(() => {
     if (state !== 'running') return
-    if (!hasBarcodeDetector) return
     if (detected) return
 
     const Detector = (globalThis as any).BarcodeDetector
-    let detector: any
-    try {
-      detector = new Detector({ formats: ['qr_code', 'ean_13'] })
-    } catch (e: any) {
-      setDetectError(`Constructor BarcodeDetector a échoué: ${e?.message ?? String(e)}`)
-      return
-    }
+    const detector = new Detector({ formats: ['qr_code', 'ean_13'] })
 
     const timer = window.setInterval(async () => {
       try {
@@ -108,32 +81,29 @@ export default function Scan() {
           setDetected(value)
           stopCamera()
         }
-      } catch (e: any) {
-        setDetectError(`detect() a échoué: ${e?.message ?? String(e)}`)
+      } catch {
+        // silencieux (on ajoutera une UI d'erreur plus tard si besoin)
       }
     }, 300)
 
     return () => window.clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, hasBarcodeDetector, detected])
+  }, [state, detected])
 
   useEffect(() => () => stopCamera(), [])
 
   const canUseCamera = !!navigator.mediaDevices?.getUserMedia
+
+  function onUseCode() {
+    if (!detected) return
+    alert(`Code: ${detected}`)
+  }
 
   return (
     <>
       <Header />
       <main style={{ padding: 12, display: 'grid', gap: 12 }}>
         <h1>Scan</h1>
-
-        <div style={{ fontSize: 12, opacity: 0.75 }}>
-          Camera API: {canUseCamera ? 'OK' : 'NON'}
-          <br />
-          BarcodeDetector: {hasBarcodeDetector ? 'OK' : 'NON'}
-          <br />
-          Formats: {supported === null ? '(n/a)' : supported.length ? supported.join(', ') : '(vide)'}
-        </div>
 
         <div style={{ background: '#111', borderRadius: 12, overflow: 'hidden' }}>
           <video
@@ -154,9 +124,16 @@ export default function Scan() {
           </button>
         </div>
 
-        {detected && <div>Détecté : <strong>{detected}</strong></div>}
-        {error && <div style={{ color: 'crimson' }}>Caméra: {error}</div>}
-        {detectError && <div style={{ color: 'crimson' }}>Détection: {detectError}</div>}
+        {detected && (
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div>
+              Détecté : <strong>{detected}</strong>
+            </div>
+            <button onClick={onUseCode}>Utiliser ce code</button>
+          </div>
+        )}
+
+        {error && <div style={{ color: 'crimson' }}>Erreur : {error}</div>}
       </main>
     </>
   )
