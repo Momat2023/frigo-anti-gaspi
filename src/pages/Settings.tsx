@@ -7,7 +7,8 @@ import { clampInt } from '../utils/number'
 import { exportDataV1, exportPreview } from '../data/export'
 import { downloadJsonFile } from '../utils/download'
 import { exportFilename } from '../utils/filename'
-import { importDataFromText, type ImportMode } from '../data/import'
+import { importDataFromText, previewImportFromText, type ImportMode, type ImportPreview } from '../data/import'
+import { readFileAsText } from '../utils/file'
 
 type DaysMap = Record<Category, number>
 
@@ -32,9 +33,12 @@ export default function Settings() {
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [importMode, setImportMode] = useState<ImportMode>('merge')
   const [importBusy, setImportBusy] = useState(false)
+  const [importText, setImportText] = useState<string | null>(null)
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
 
   const categories = useMemo(() => Object.keys(CATEGORY_LABEL) as Category[], [])
-  const opts = useMemo(
+  const exportOpts = useMemo(
     () => ({ includeArchived, includeSettings: includeSettingsOpt, includeScanHistory }),
     [includeArchived, includeSettingsOpt, includeScanHistory]
   )
@@ -46,8 +50,8 @@ export default function Settings() {
   }, [])
 
   useEffect(() => {
-    exportPreview(opts).then(setPreview)
-  }, [opts])
+    exportPreview(exportOpts).then(setPreview)
+  }, [exportOpts])
 
   function setDay(cat: Category, value: number) {
     setDays((prev) => ({ ...prev, [cat]: value }))
@@ -63,12 +67,12 @@ export default function Settings() {
   }
 
   async function onExportDownload() {
-    const data = await exportDataV1(opts)
+    const data = await exportDataV1(exportOpts)
     downloadJsonFile(exportFilename(), data)
   }
 
   async function onExportShare() {
-    const data = await exportDataV1(opts)
+    const data = await exportDataV1(exportOpts)
     const filename = exportFilename()
     const json = JSON.stringify(data, null, 2)
 
@@ -83,10 +87,26 @@ export default function Settings() {
     }
   }
 
+  async function onPickImportFile() {
+    setImportError(null)
+    setImportPreview(null)
+    setImportText(null)
+
+    const f = fileRef.current?.files?.[0]
+    if (!f) return
+
+    try {
+      const text = await readFileAsText(f)
+      setImportText(text)
+      const p = await previewImportFromText(text)
+      setImportPreview(p)
+    } catch (e: any) {
+      setImportError(e?.message ?? 'Fichier import illisible')
+    }
+  }
+
   async function onImport() {
-    const input = fileRef.current
-    const file = input?.files?.[0]
-    if (!file) return alert('Choisis un fichier .json à importer.')
+    if (!importText) return alert('Choisis un fichier .json à importer (preview requis).')
 
     const msg =
       importMode === 'replace'
@@ -96,27 +116,34 @@ export default function Settings() {
 
     setImportBusy(true)
     try {
-      const reader = new FileReader()
-      const text: string = await new Promise((resolve, reject) => {
-        reader.addEventListener('loadend', () => {
-          const res = reader.result
-          if (typeof res === 'string') resolve(res)
-          else reject(new Error('Lecture du fichier impossible.'))
+      // backup auto si replace
+      if (importMode === 'replace') {
+        const backup = await exportDataV1({
+          includeArchived: true,
+          includeSettings: true,
+          includeScanHistory: true,
         })
-        reader.addEventListener('error', () => reject(new Error('Erreur de lecture fichier.')))
-        reader.readAsText(file)
-      })
+        downloadJsonFile(exportFilename('frigo-backup-before-replace'), backup)
+      }
 
-      const r = await importDataFromText(text, importMode)
+      const r = await importDataFromText(importText, importMode)
       alert(
-        `Import OK.\nItems: ${r.itemsWritten}/${r.itemsProcessed}\nRéglages: ${r.settingsImported ? 'oui' : 'non'}\nScan history: ${r.scanHistoryImported ? 'oui' : 'non'}`
+        `Import OK.\n` +
+          `Items: écrits ${r.itemsWritten} (uniques ${r.uniqueItemsInFile}, source ${r.itemsProcessed})\n` +
+          `Doublons ignorés: ${r.duplicatesDropped}\n` +
+          `Sans clé ignorés: ${r.missingKeySkipped}\n` +
+          `Réglages: ${r.settingsImported ? 'oui' : 'non'}\n` +
+          `Scan history: ${r.scanHistoryImported ? 'oui' : 'non'}`
       )
+
       window.location.reload()
     } catch (e: any) {
       alert(e?.message ?? 'Import impossible')
     } finally {
       setImportBusy(false)
       if (fileRef.current) fileRef.current.value = ''
+      setImportText(null)
+      setImportPreview(null)
     }
   }
 
@@ -189,7 +216,22 @@ export default function Settings() {
 
         <h2>Foyer (import)</h2>
 
-        <input ref={fileRef} type="file" accept=".json,application/json" />
+        <input ref={fileRef} type="file" accept=".json,application/json" onChange={onPickImportFile} />
+
+        {importError && <div style={{ color: 'crimson' }}>Erreur: {importError}</div>}
+
+        {importPreview && (
+          <div style={{ fontSize: 12, opacity: 0.85 }}>
+            Schema: v{importPreview.schemaVersion}<br />
+            Exporté: {new Date(importPreview.exportedAt).toLocaleString()}<br />
+            Items (source): {importPreview.itemsCount}<br />
+            Doublons dans le fichier: {importPreview.duplicatesInFile}<br />
+            Items sans clé (ignorés à l’import): {importPreview.missingKeyCount}<br />
+            KeyPath DB: {Array.isArray(importPreview.keyPath) ? importPreview.keyPath.join(',') : String(importPreview.keyPath)}<br />
+            Réglages présents: {importPreview.hasSettings ? 'oui' : 'non'}<br />
+            Scan history présent: {importPreview.hasScanHistory ? 'oui' : 'non'}
+          </div>
+        )}
 
         <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input type="radio" name="importMode" checked={importMode === 'merge'} onChange={() => setImportMode('merge')} />
@@ -197,11 +239,16 @@ export default function Settings() {
         </label>
 
         <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="radio" name="importMode" checked={importMode === 'replace'} onChange={() => setImportMode('replace')} />
-          Remplacer (dangereux)
+          <input
+            type="radio"
+            name="importMode"
+            checked={importMode === 'replace'}
+            onChange={() => setImportMode('replace')}
+          />
+          Remplacer (dangereux, fait un backup auto)
         </label>
 
-        <button onClick={onImport} disabled={importBusy}>
+        <button onClick={onImport} disabled={importBusy || !importText}>
           {importBusy ? 'Import…' : 'Importer'}
         </button>
       </main>
