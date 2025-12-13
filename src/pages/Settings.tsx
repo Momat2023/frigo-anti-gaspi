@@ -9,6 +9,12 @@ import { downloadJsonFile } from '../utils/download'
 import { exportFilename } from '../utils/filename'
 import { importDataFromText, previewImportFromText, type ImportMode, type ImportPreview } from '../data/import'
 import { readFileAsText } from '../utils/file'
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+  showExpiryTestNotification,
+} from '../notifications/expiry'
 
 type DaysMap = Record<Category, number>
 
@@ -37,6 +43,10 @@ export default function Settings() {
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
 
+  // Notifications
+  const [notifSupported, setNotifSupported] = useState<'unknown' | 'yes' | 'no'>('unknown')
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported' | 'unknown'>('unknown')
+
   const categories = useMemo(() => Object.keys(CATEGORY_LABEL) as Category[], [])
   const exportOpts = useMemo(
     () => ({ includeArchived, includeSettings: includeSettingsOpt, includeScanHistory }),
@@ -52,6 +62,12 @@ export default function Settings() {
   useEffect(() => {
     exportPreview(exportOpts).then(setPreview)
   }, [exportOpts])
+
+  useEffect(() => {
+    const supported = isNotificationSupported()
+    setNotifSupported(supported ? 'yes' : 'no')
+    setNotifPermission(supported ? getNotificationPermission() : 'unsupported')
+  }, [])
 
   function setDay(cat: Category, value: number) {
     setDays((prev) => ({ ...prev, [cat]: value }))
@@ -116,7 +132,6 @@ export default function Settings() {
 
     setImportBusy(true)
     try {
-      // backup auto si replace
       if (importMode === 'replace') {
         const backup = await exportDataV1({
           includeArchived: true,
@@ -144,6 +159,31 @@ export default function Settings() {
       if (fileRef.current) fileRef.current.value = ''
       setImportText(null)
       setImportPreview(null)
+    }
+  }
+
+  async function onRequestNotifPermission() {
+    const perm = await requestNotificationPermission()
+    setNotifPermission(perm)
+    if (perm === 'granted') {
+      alert('Notifications autorisées pour ce site.')
+    } else if (perm === 'denied') {
+      alert("Notifications refusées. Tu peux changer ça dans les réglages du navigateur.")
+    } else if (perm === 'unsupported') {
+      alert('Notifications non supportées sur ce navigateur.')
+    }
+  }
+
+  async function onTestExpiryNotification() {
+    const res = await showExpiryTestNotification()
+    if (res === 'unsupported') {
+      alert('Notifications non supportées sur ce navigateur.')
+    } else if (res === 'denied' || res === 'no-permission') {
+      alert("Pas d’autorisation pour envoyer des notifications.")
+    } else if (res === 'no-items') {
+      alert("Aucun aliment proche de la date pour l’instant.")
+    } else if (res === 'shown') {
+      // la notif est déjà affichée par le système
     }
   }
 
@@ -178,6 +218,31 @@ export default function Settings() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={onSave}>Enregistrer</button>
           <button onClick={onReset}>Réinitialiser</button>
+        </div>
+
+        <hr />
+
+        <h2>Notifications</h2>
+
+        <p style={{ fontSize: 12, opacity: 0.75 }}>
+          Les notifications système nécessitent HTTPS / site installé, et ton accord explicite via le navigateur.
+        </p>
+
+        <div style={{ fontSize: 12, opacity: 0.85 }}>
+          Support navigateur:{' '}
+          {notifSupported === 'unknown' ? '…' : notifSupported === 'yes' ? 'oui' : 'non'}
+          <br />
+          Permission:{' '}
+          {notifPermission === 'unknown'
+            ? '…'
+            : notifPermission === 'unsupported'
+            ? 'non supporté'
+            : notifPermission}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={onRequestNotifPermission}>Demander / mettre à jour l’autorisation</button>
+          <button onClick={onTestExpiryNotification}>Tester la notif “proche de la date”</button>
         </div>
 
         <hr />
@@ -222,13 +287,23 @@ export default function Settings() {
 
         {importPreview && (
           <div style={{ fontSize: 12, opacity: 0.85 }}>
-            Schema: v{importPreview.schemaVersion}<br />
-            Exporté: {new Date(importPreview.exportedAt).toLocaleString()}<br />
-            Items (source): {importPreview.itemsCount}<br />
-            Doublons dans le fichier: {importPreview.duplicatesInFile}<br />
-            Items sans clé (ignorés à l’import): {importPreview.missingKeyCount}<br />
-            KeyPath DB: {Array.isArray(importPreview.keyPath) ? importPreview.keyPath.join(',') : String(importPreview.keyPath)}<br />
-            Réglages présents: {importPreview.hasSettings ? 'oui' : 'non'}<br />
+            Schema: v{importPreview.schemaVersion}
+            <br />
+            Exporté: {new Date(importPreview.exportedAt).toLocaleString()}
+            <br />
+            Items (source): {importPreview.itemsCount}
+            <br />
+            Doublons dans le fichier: {importPreview.duplicatesInFile}
+            <br />
+            Items sans clé (ignorés à l’import): {importPreview.missingKeyCount}
+            <br />
+            KeyPath DB:{' '}
+            {Array.isArray(importPreview.keyPath)
+              ? importPreview.keyPath.join(',')
+              : String(importPreview.keyPath)}
+            <br />
+            Réglages présents: {importPreview.hasSettings ? 'oui' : 'non'}
+            <br />
             Scan history présent: {importPreview.hasScanHistory ? 'oui' : 'non'}
           </div>
         )}
