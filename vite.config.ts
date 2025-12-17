@@ -4,10 +4,18 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   build: {
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'vendor'
+            }
+            if (id.includes('idb')) {
+              return 'database'
+            }
+          }
+        }
       }
     }
   },
