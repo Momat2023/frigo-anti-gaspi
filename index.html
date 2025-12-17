@@ -2,15 +2,38 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/pwa-192x192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Theme -->
     <meta name="theme-color" content="#6366f1" />
-    <meta name="description" content="Gérez votre frigo et réduisez le gaspillage alimentaire" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <!-- SEO -->
+    <meta name="description" content="Gérez votre frigo intelligemment, réduisez le gaspillage alimentaire avec le scan de code-barres, des suggestions de recettes et un système de badges motivant." />
+    <meta name="keywords" content="frigo, anti-gaspi, gaspillage alimentaire, recettes, scan code-barres, PWA" />
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Frigo Anti-Gaspi - Réduisez le gaspillage alimentaire" />
+    <meta property="og:description" content="Application mobile pour gérer votre frigo, scanner vos produits et découvrir des recettes anti-gaspi" />
+    <meta property="og:image" content="/pwa-512x512.png" />
+    
+    <!-- Apple -->
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
-    <title>Frigo Anti-Gaspi</title>
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Frigo" />
+    
+    <title>Frigo Anti-Gaspi - Gérez votre frigo intelligemment</title>
   </head>
   <body style="margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif;">
+    <noscript>
+      <div style="padding: 20px; text-align: center;">
+        Cette application nécessite JavaScript pour fonctionner.
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+
