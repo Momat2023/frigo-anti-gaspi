@@ -1,18 +1,4 @@
-export type Item = {
-  id: number
-  name: string
-  category: Category
-  expiresAt: number
-  location: Location
-  status: 'active' | 'eaten' | 'thrown'
-  createdAt: number
-  openedAt: number
-  targetDays: number
-  barcode?: string
-  imageUrl?: string
-}
-
-export type Category = 
+export type Category =
   | 'Fruits & Légumes'
   | 'Viandes & Poissons'
   | 'Produits laitiers'
@@ -20,18 +6,35 @@ export type Category =
   | 'Conserves'
   | 'Surgelés'
   | 'Autre'
-  | 'cooked_dish'
-  | 'soup'
-  | 'cooked_fish_poultry'
-  | 'meat_sauce'
 
 export type Location = 'Frigo' | 'Congélateur' | 'Placard'
 
+export type Status = 'active' | 'eaten' | 'thrown'
+
+export type Item = {
+  id: number
+  name: string
+  category: Category
+  openedAt: number
+  expiresAt: number
+  targetDays: number
+  location: Location
+  status: Status
+  barcode?: string
+  imageUrl?: string
+}
+
 export type Settings = {
-  key: string
+  id: 'main'
   notificationsEnabled: boolean
-  defaultLocation: Location
-  defaultTargetDays: number
-  defaultDaysByCategory?: Record<string, number>
-  updatedAt?: number
+}
+
+export type Stats = {
+  consumed: number
+  thrown: number
+  totalSaved: number
+  totalWasted: number
+  successRate: number
+  streak: number
+  lastActivityDate: number
 }

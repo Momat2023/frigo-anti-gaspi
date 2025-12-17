@@ -4,6 +4,7 @@ import type { Item } from '../data/types'
 import Header from '../ui/Header'
 import BadgeToast from '../ui/BadgeToast'
 import MotivationWidget from '../ui/MotivationWidget'
+import StreakDisplay from '../ui/StreakDisplay'
 import { useBadgeNotification } from '../hooks/useBadgeNotification'
 import { Link, useNavigate } from 'react-router-dom'
 import { trackEvent } from '../services/analytics'
@@ -90,6 +91,9 @@ export default function Home() {
       
       <main style={{ padding: 12 }}>
         <h1 style={{ marginBottom: 16 }}>🏠 Mon Frigo</h1>
+
+        {/* NOUVEAU : Streak Display en premier */}
+        <StreakDisplay key={refreshWidget} />
 
         <MotivationWidget key={refreshWidget} />
 

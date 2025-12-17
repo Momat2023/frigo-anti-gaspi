@@ -1,11 +1,14 @@
 import { getDb } from './db'
 import type { Item } from './types'
 
-export type StatsSnapshot = {
-  date: string // YYYY-MM-DD
+export type Stats = {
   consumed: number
   thrown: number
-  active: number
+  totalSaved: number
+  totalWasted: number
+  successRate: number
+  streak: number
+  lastActivityDate: number
 }
 
 export type Badge = {
@@ -14,179 +17,171 @@ export type Badge = {
   description: string
   icon: string
   condition: (stats: Stats) => boolean
-  unlockedAt?: number
+  unlocked?: boolean
 }
 
-export type Stats = {
-  totalItems: number
-  consumed: number
-  thrown: number
-  active: number
-  wasteRate: number // pourcentage jeté
-  savedRate: number // pourcentage consommé
-  moneyWasted: number // estimation
-  moneySaved: number // estimation
-  currentStreak: number // jours consécutifs sans gaspillage
-  longestStreak: number
-  badges: Badge[]
-}
-
-const PRICE_PER_ITEM = 3.5 // prix moyen estimé par aliment en €
-
-export async function getStats(): Promise<Stats> {
-  const db = await getDb()
-  const allItems = await db.getAll('items')
-
-  const consumed = allItems.filter(x => x.status === 'eaten').length
-  const thrown = allItems.filter(x => x.status === 'thrown').length
-  const active = allItems.filter(x => x.status === 'active').length
-  const total = consumed + thrown
-
-  const wasteRate = total > 0 ? (thrown / total) * 100 : 0
-  const savedRate = total > 0 ? (consumed / total) * 100 : 0
-
-  const moneyWasted = thrown * PRICE_PER_ITEM
-  const moneySaved = consumed * PRICE_PER_ITEM
-
-  // Calcul du streak (simplifié pour l'instant)
-  const currentStreak = await calculateCurrentStreak(allItems)
-  const longestStreak = await calculateLongestStreak(allItems)
-
-  const stats: Stats = {
-    totalItems: total,
-    consumed,
-    thrown,
-    active,
-    wasteRate,
-    savedRate,
-    moneyWasted,
-    moneySaved,
-    currentStreak,
-    longestStreak,
-    badges: []
-  }
-
-  // Calculer les badges débloqués
-  stats.badges = ALL_BADGES.filter(badge => badge.condition(stats))
-
-  return stats
-}
-
-async function calculateCurrentStreak(items: Item[]): Promise<number> {
-  // Trie les items jetés par date décroissante
-  const thrownItems = items
-    .filter(x => x.status === 'thrown' && x.createdAt)
-    .sort((a, b) => b.createdAt - a.createdAt)
-
-  if (thrownItems.length === 0) {
-    // Aucun item jeté = streak infini, on calcule depuis le premier aliment consommé
-    const consumedItems = items.filter(x => x.status === 'eaten' && x.createdAt)
-    if (consumedItems.length === 0) return 0
-    
-    const oldestConsumed = Math.min(...consumedItems.map(x => x.createdAt))
-    const daysSince = Math.floor((Date.now() - oldestConsumed) / (24 * 60 * 60 * 1000))
-    return Math.max(0, daysSince)
-  }
-
-  // Dernier item jeté
-  const lastThrown = thrownItems[0].createdAt
-  const daysSinceLastWaste = Math.floor((Date.now() - lastThrown) / (24 * 60 * 60 * 1000))
-  
-  return Math.max(0, daysSinceLastWaste)
-}
-
-async function calculateLongestStreak(items: Item[]): Promise<number> {
-  // Version simplifiée : pour l'instant on retourne le streak actuel
-  // TODO: implémenter le calcul historique complet
-  return calculateCurrentStreak(items)
-}
-
-export async function getWeeklyStats(): Promise<StatsSnapshot[]> {
-  const db = await getDb()
-  const allItems = await db.getAll('items')
-  
-  const snapshots: StatsSnapshot[] = []
-  const today = new Date()
-  
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(today)
-    date.setDate(date.getDate() - i)
-    date.setHours(0, 0, 0, 0)
-    
-    const dayStart = date.getTime()
-    const dayEnd = dayStart + 24 * 60 * 60 * 1000
-    
-    const dayItems = allItems.filter(x => 
-      x.createdAt >= dayStart && x.createdAt < dayEnd
-    )
-    
-    snapshots.push({
-      date: date.toISOString().split('T')[0],
-      consumed: dayItems.filter(x => x.status === 'eaten').length,
-      thrown: dayItems.filter(x => x.status === 'thrown').length,
-      active: dayItems.filter(x => x.status === 'active').length
-    })
-  }
-  
-  return snapshots
-}
-
-// Définition des badges
 export const ALL_BADGES: Badge[] = [
   {
-    id: 'first-save',
+    id: 'first-step',
     name: 'Premier pas',
-    description: 'Consomme ton premier aliment',
+    description: 'Consommer votre premier aliment',
     icon: '🌱',
     condition: (s) => s.consumed >= 1
   },
   {
-    id: 'zero-waste-week',
-    name: 'Semaine parfaite',
-    description: '7 jours sans gaspillage',
-    icon: '🌟',
-    condition: (s) => s.currentStreak >= 7
-  },
-  {
     id: 'save-10',
-    name: 'Sauveur débutant',
-    description: 'Sauve 10 aliments',
-    icon: '🥉',
+    name: 'Économe',
+    description: 'Sauver 10 aliments',
+    icon: '💚',
     condition: (s) => s.consumed >= 10
   },
   {
     id: 'save-50',
-    name: 'Sauveur confirmé',
-    description: 'Sauve 50 aliments',
-    icon: '🥈',
+    name: 'Héros anti-gaspi',
+    description: 'Sauver 50 aliments',
+    icon: '🏆',
     condition: (s) => s.consumed >= 50
   },
   {
     id: 'save-100',
-    name: 'Héros anti-gaspi',
-    description: 'Sauve 100 aliments',
-    icon: '🥇',
+    name: 'Légende',
+    description: 'Sauver 100 aliments',
+    icon: '💎',
     condition: (s) => s.consumed >= 100
   },
   {
-    id: 'eco-warrior',
-    name: 'Éco-guerrier',
-    description: 'Plus de 90% d\'aliments consommés',
-    icon: '♻️',
-    condition: (s) => s.savedRate >= 90 && s.totalItems >= 10
+    id: 'perfect-week',
+    name: 'Semaine parfaite',
+    description: '7 jours sans gaspillage',
+    icon: '⭐',
+    condition: (s) => s.streak >= 7
+  },
+  {
+    id: 'streak-30',
+    name: 'Maître du streak',
+    description: '30 jours consécutifs sans gaspillage',
+    icon: '🔥',
+    condition: (s) => s.streak >= 30
+  },
+  {
+    id: 'high-success',
+    name: 'Perfectionniste',
+    description: 'Taux de réussite supérieur à 90%',
+    icon: '🎯',
+    condition: (s) => s.successRate >= 90
   },
   {
     id: 'money-saver',
-    name: 'Économe',
-    description: 'Économise plus de 50€',
+    name: 'Économiste',
+    description: 'Économiser plus de 100€',
     icon: '💰',
-    condition: (s) => s.moneySaved >= 50
-  },
-  {
-    id: 'streak-master',
-    name: 'Maître du streak',
-    description: '30 jours sans gaspillage',
-    icon: '🔥',
-    condition: (s) => s.currentStreak >= 30
+    condition: (s) => s.totalSaved >= 100
   }
 ]
+
+const AVG_PRICE = 3
+
+function getStreak(items: Item[]): number {
+  const consumed = items.filter(i => i.status === 'eaten').sort((a, b) => b.openedAt - a.openedAt)
+  const thrown = items.filter(i => i.status === 'thrown').sort((a, b) => b.openedAt - a.openedAt)
+  
+  if (consumed.length === 0) return 0
+  
+  let streak = 0
+  let currentDate = new Date()
+  currentDate.setHours(0, 0, 0, 0)
+  
+  for (let i = 0; i < 365; i++) {
+    const dayStart = currentDate.getTime()
+    const dayEnd = dayStart + 24 * 60 * 60 * 1000
+    
+    const thrownToday = thrown.some(item => {
+      const itemDate = item.openedAt
+      return itemDate >= dayStart && itemDate < dayEnd
+    })
+    
+    if (thrownToday) {
+      break
+    }
+    
+    const consumedToday = consumed.some(item => {
+      const itemDate = item.openedAt
+      return itemDate >= dayStart && itemDate < dayEnd
+    })
+    
+    if (consumedToday || i === 0) {
+      streak++
+      currentDate.setDate(currentDate.getDate() - 1)
+    } else {
+      break
+    }
+  }
+  
+  return streak
+}
+
+export async function getStats(): Promise<Stats> {
+  const db = await getDb()
+  const items = await db.getAll('items')
+  
+  const consumed = items.filter(i => i.status === 'eaten')
+  const thrown = items.filter(i => i.status === 'thrown')
+  
+  const totalSaved = consumed.length * AVG_PRICE
+  const totalWasted = thrown.length * AVG_PRICE
+  
+  const total = consumed.length + thrown.length
+  const successRate = total > 0 ? Math.round((consumed.length / total) * 100) : 0
+  
+  const streak = getStreak(items)
+  
+  const allActivity = [...consumed, ...thrown].sort((a, b) => b.openedAt - a.openedAt)
+  const lastActivityDate = allActivity.length > 0 ? allActivity[0].openedAt : Date.now()
+  
+  return {
+    consumed: consumed.length,
+    thrown: thrown.length,
+    totalSaved,
+    totalWasted,
+    successRate,
+    streak,
+    lastActivityDate
+  }
+}
+
+export async function getUnlockedBadges(): Promise<Badge[]> {
+  const stats = await getStats()
+  return ALL_BADGES.filter(badge => badge.condition(stats))
+}
+
+export async function getWeeklyData(): Promise<{ date: string; consumed: number; thrown: number }[]> {
+  const db = await getDb()
+  const items = await db.getAll('items')
+  
+  const now = Date.now()
+  const weekData: { date: string; consumed: number; thrown: number }[] = []
+  
+  for (let i = 6; i >= 0; i--) {
+    const dayStart = now - i * 24 * 60 * 60 * 1000
+    const dayEnd = dayStart + 24 * 60 * 60 * 1000
+    
+    const consumed = items.filter(
+      item => item.status === 'eaten' && item.openedAt >= dayStart && item.openedAt < dayEnd
+    ).length
+    
+    const thrown = items.filter(
+      item => item.status === 'thrown' && item.openedAt >= dayStart && item.openedAt < dayEnd
+    ).length
+    
+    const date = new Date(dayStart)
+    const dayName = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][date.getDay()]
+    
+    weekData.push({
+      date: dayName,
+      consumed,
+      thrown
+    })
+  }
+  
+  return weekData
+}

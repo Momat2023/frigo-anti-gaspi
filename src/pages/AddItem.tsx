@@ -33,13 +33,16 @@ export default function AddItem() {
     if (!name.trim()) return
 
     const expiresAtMs = new Date(expiresAt).getTime()
+    const now = Date.now()
     
     const newItem = await addItem({
       name: name.trim(),
       category,
+      openedAt: now,
       expiresAt: expiresAtMs,
       location: itemLocation,
-      targetDays: 7,
+      targetDays: Math.ceil((expiresAtMs - now) / (24 * 60 * 60 * 1000)),
+      status: 'active',
       barcode: barcode || undefined,
       imageUrl: imageUrl || undefined
     })
