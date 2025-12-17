@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { addItem } from '../data/db'
 import Header from '../ui/Header'
 import { scheduleNotification, areNotificationsEnabled } from '../services/notifications'
+import { trackEvent } from '../services/analytics'
 import type { Category, Location } from '../data/types'
 
 export default function AddItem() {
@@ -18,6 +19,8 @@ export default function AddItem() {
   const [imageUrl] = useState(state?.imageUrl || '')
 
   useEffect(() => {
+    trackEvent('page_view', { page: 'add_item' })
+    
     if (!expiresAt) {
       const future = new Date()
       future.setDate(future.getDate() + 7)
@@ -39,6 +42,14 @@ export default function AddItem() {
       targetDays: 7,
       barcode: barcode || undefined,
       imageUrl: imageUrl || undefined
+    })
+
+    // Track event
+    trackEvent('item_added', {
+      method: barcode ? 'scan' : 'manual',
+      category,
+      location: itemLocation,
+      hasBarcode: !!barcode
     })
 
     // Programmer une notification si activées

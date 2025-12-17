@@ -7,6 +7,7 @@ import Scan from './pages/Scan'
 import Onboarding from './pages/Onboarding'
 import StatsPage from './pages/Stats'
 import Recipes from './pages/Recipes'
+import AdminStats from './pages/AdminStats'
 import InstallPrompt from './ui/InstallPrompt'
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/recipes" element={<Recipes />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/item/:id" element={<ItemDetail />} />
+        <Route path="/admin/stats" element={<AdminStats />} />
         <Route path="*" element={<div style={{ padding: 12 }}>Not Found</div>} />
       </Routes>
     </BrowserRouter>

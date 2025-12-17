@@ -6,6 +6,7 @@ import BadgeToast from '../ui/BadgeToast'
 import MotivationWidget from '../ui/MotivationWidget'
 import { useBadgeNotification } from '../hooks/useBadgeNotification'
 import { Link, useNavigate } from 'react-router-dom'
+import { trackEvent } from '../services/analytics'
 
 function getUrgencyClass(item: Item) {
   const msTarget = item.openedAt + item.targetDays * 24 * 60 * 60 * 1000
@@ -27,6 +28,7 @@ export default function Home() {
 
   useEffect(() => {
     load()
+    trackEvent('page_view', { page: 'home' })
   }, [])
 
   async function load() {
@@ -46,18 +48,26 @@ export default function Home() {
     const all = await db.getAll('items')
     const item = all.find(x => x.id === id)
     if (!item) return
+    
     await db.put('items', { ...item, status })
     await load()
+    
+    // Track event
+    trackEvent('item_marked', { 
+      status, 
+      category: item.category,
+      daysBeforeExpiry: Math.ceil((item.openedAt + item.targetDays * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000))
+    })
     
     await checkForNewBadges()
     setRefreshWidget(prev => prev + 1)
   }
 
   function handleCookSuggestions() {
-    // Prendre les 3 aliments les plus urgents
     const topUrgent = items.slice(0, 3)
     const ingredients = topUrgent.map(item => item.name)
     
+    trackEvent('cook_suggestions_clicked', { itemCount: topUrgent.length })
     navigate('/recipes', { state: { ingredients } })
   }
 
