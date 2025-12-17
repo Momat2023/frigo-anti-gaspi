@@ -1,30 +1,14 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App'
+import App from './App.tsx'
 import './index.css'
+import { initNotifications } from './services/notifications'
 
-import { startExpiryAutoCheckLoop } from './notifications/autoCheck'
+// Initialiser le système de notifications
+initNotifications()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>
+  </React.StrictMode>,
 )
-
-startExpiryAutoCheckLoop()
-
-if ('serviceWorker' in navigator) {
-  let refreshing = false
-
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return
-    refreshing = true
-    window.location.reload()
-  })
-
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // ignore
-    })
-  })
-}

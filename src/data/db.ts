@@ -1,114 +1,110 @@
-import { openDB, type DBSchema } from 'idb'
+import { openDB, type IDBPDatabase } from 'idb'
 import type { Item, Settings } from './types'
 import { DEFAULT_DAYS } from './presets'
 
-type FrigoDB = DBSchema & {
+const DB_NAME = 'frigo-anti-gaspi'
+const DB_VERSION = 1
+
+export type AppDB = {
   items: {
-    key: string
+    key: number
     value: Item
-    indexes: {
-      'by-status': string
-      'by-createdAt': number
-    }
   }
   settings: {
-    key: 'main'
+    key: string
     value: Settings
   }
 }
 
-const DB_NAME = 'frigo-anti-gaspi'
-const DB_VERSION = 3
-const SETTINGS_KEY: Settings['key'] = 'main'
+let dbInstance: IDBPDatabase<AppDB> | null = null
 
 export async function getDb() {
-  return openDB<FrigoDB>(DB_NAME, DB_VERSION, {
-    upgrade(db, oldVersion, _newVersion, transaction) {
-      // v1: store items
-      if (oldVersion < 1) {
-        const store = db.createObjectStore('items', { keyPath: 'id' })
-        store.createIndex('by-status', 'status')
-        store.createIndex('by-createdAt', 'createdAt')
+  if (dbInstance) return dbInstance
+  dbInstance = await openDB<AppDB>(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains('items')) {
+        db.createObjectStore('items', { keyPath: 'id' })
       }
-
-      // v3: store settings (création de schema uniquement dans upgrade) [web:240][web:238]
-      if (oldVersion < 3) {
-        if (!db.objectStoreNames.contains('settings')) {
-          db.createObjectStore('settings', { keyPath: 'key' })
-        }
-
-        // Seed settings par défaut (dans la transaction d'upgrade)
-        const settingsStore = transaction.objectStore('settings')
-        const initial: Settings = {
-          key: SETTINGS_KEY,
-          defaultDaysByCategory: DEFAULT_DAYS,
-          updatedAt: Date.now(),
-        }
-        settingsStore.put(initial)
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings', { keyPath: 'key' })
       }
-    },
+    }
+  })
+  await initSettings()
+  return dbInstance
+}
+
+const SETTINGS_KEY = 'main'
+
+async function initSettings() {
+  if (!dbInstance) return
+  const db = dbInstance
+  const existing = await db.get('settings', SETTINGS_KEY)
+  if (!existing) {
+    await db.put('settings', {
+      key: SETTINGS_KEY,
+      notificationsEnabled: false,
+      defaultLocation: 'Frigo',
+      defaultTargetDays: 7,
+      defaultDaysByCategory: DEFAULT_DAYS
+    })
+  }
+}
+
+export async function addItem(item: Omit<Item, 'id' | 'status' | 'createdAt' | 'openedAt'>) {
+  const db = await getDb()
+  const newItem: Item = {
+    ...item,
+    id: Date.now(),
+    status: 'active',
+    createdAt: Date.now(),
+    openedAt: Date.now()
+  }
+  await db.add('items', newItem)
+  return newItem
+}
+
+export async function updateItem(id: number, updates: Partial<Item>) {
+  const db = await getDb()
+  const all = await db.getAll('items')
+  const item = all.find(x => x.id === id)
+  if (!item) return
+  await db.put('items', { ...item, ...updates })
+}
+
+export async function deleteItem(id: number) {
+  const db = await getDb()
+  const all = await db.getAll('items')
+  const item = all.find(x => x.id === id)
+  if (!item) return
+  await db.delete('items', item.id)
+}
+
+export async function getSettings(): Promise<Settings> {
+  const db = await getDb()
+  const s = await db.get('settings', SETTINGS_KEY)
+  if (!s) {
+    return {
+      key: SETTINGS_KEY,
+      notificationsEnabled: false,
+      defaultLocation: 'Frigo',
+      defaultTargetDays: 7,
+      defaultDaysByCategory: DEFAULT_DAYS,
+      updatedAt: Date.now()
+    }
+  }
+  return s
+}
+
+export async function updateSettings(updates: Partial<Settings>) {
+  const db = await getDb()
+  const current = await getSettings()
+  await db.put('settings', {
+    ...current,
+    ...updates,
+    updatedAt: Date.now()
   })
 }
 
-export function newId() {
-  return crypto.randomUUID()
-}
-
-/* -------------------- Items -------------------- */
-export async function addItem(item: Item) {
-  const db = await getDb()
-  await db.put('items', item)
-}
-
-export async function listActiveItems() {
-  const db = await getDb()
-  const all = await db.getAll('items')
-  return all.filter((x) => x.status === 'active')
-}
-
-export async function getItem(id: string) {
-  const db = await getDb()
-  return db.get('items', id)
-}
-
-export async function updateItem(item: Item) {
-  const db = await getDb()
-  await db.put('items', item)
-}
-
-export async function setStatus(id: string, status: 'active' | 'eaten' | 'thrown') {
-  const db = await getDb()
-  const item = await db.get('items', id)
-  if (!item) return
-  await db.put('items', { ...item, status })
-}
-
-export async function deleteItem(id: string) {
-  const db = await getDb()
-  await db.delete('items', id)
-}
-
-/* -------------------- Settings -------------------- */
-export async function getSettings(): Promise<Settings> {
-  const db = await getDb()
-  const existing = await db.get('settings', SETTINGS_KEY)
-  if (existing) return existing
-
-  const initial: Settings = {
-    key: SETTINGS_KEY,
-    defaultDaysByCategory: DEFAULT_DAYS,
-    updatedAt: Date.now(),
-  }
-  await db.put('settings', initial)
-  return initial
-}
-
-export async function saveSettings(partial: Omit<Settings, 'key' | 'updatedAt'>) {
-  const db = await getDb()
-  const next: Settings = {
-    key: SETTINGS_KEY,
-    ...partial,
-    updatedAt: Date.now(),
-  }
-  await db.put('settings', next)
-}
+// Alias pour compatibilité
+export const saveSettings = updateSettings

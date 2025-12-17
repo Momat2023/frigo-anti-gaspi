@@ -1,0 +1,12 @@
+/robots.txt /robots.txt 200
+/manifest.json /manifest.json 200
+/_headers /_headers 200
+/icons/* /icons/:splat 200
+/assets/* /assets/:splat 200
+/*.png /*.png 200
+/*.svg /*.svg 200
+/*.ico /*.ico 200
+/sw.js /sw.js 200
+/registerSW.js /registerSW.js 200
+
+/* /index.html 200

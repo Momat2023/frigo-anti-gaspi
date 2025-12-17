@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://2dd39d64.frigo-anti-gaspi.pages.dev/sitemap.xml

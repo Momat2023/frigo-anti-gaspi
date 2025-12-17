@@ -1,18 +1,30 @@
 import type { Category } from './types'
 
-// Valeurs “proposées” (pas une garantie sanitaire)
-// Basé sur repères grand public (ex. Santé Canada) [web:217]
+// Durées de conservation recommandées par catégorie (en jours)
 export const DEFAULT_DAYS: Record<Category, number> = {
-  cooked_dish: 4,          // 3-4 jours
-  soup: 3,                 // 2-3 jours
-  cooked_fish_poultry: 4,  // 3-4 jours
-  meat_sauce: 4,           // 3-4 jours
+  'Fruits & Légumes': 7,
+  'Viandes & Poissons': 3,
+  'Produits laitiers': 7,
+  'Boissons': 30,
+  'Conserves': 365,
+  'Surgelés': 90,
+  'Autre': 14,
+  cooked_dish: 4,
+  soup: 3,
+  cooked_fish_poultry: 4,
+  meat_sauce: 4
 }
 
 export const CATEGORY_LABEL: Record<Category, string> = {
+  'Fruits & Légumes': 'Fruits & Légumes',
+  'Viandes & Poissons': 'Viandes & Poissons',
+  'Produits laitiers': 'Produits laitiers',
+  'Boissons': 'Boissons',
+  'Conserves': 'Conserves',
+  'Surgelés': 'Surgelés',
+  'Autre': 'Autre',
   cooked_dish: 'Plat cuisiné',
   soup: 'Soupe',
   cooked_fish_poultry: 'Poisson / volaille cuits',
-  meat_sauce: 'Sauce / bouillon viande',
+  meat_sauce: 'Sauce / bouillon viande'
 }
-

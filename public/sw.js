@@ -99,5 +99,4 @@ self.addEventListener('notificationclick', (event) => {
     }),
   )
 })
-EOF
 

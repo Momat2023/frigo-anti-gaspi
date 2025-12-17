@@ -1,57 +1,49 @@
 import { getDb, getSettings } from './db'
 import type { Item, Settings } from './types'
-import { loadScanHistory } from './scanHistory'
-import { getDeviceId } from './device'
 
-export type ExportOptions = {
-  includeArchived: boolean
-  includeSettings: boolean
-  includeScanHistory: boolean
-}
-
-export type ExportBlobV1 = {
-  schemaVersion: 1
+export type ExportData = {
+  version: number
   exportedAt: number
-  deviceId: string
   items: Item[]
-  settings?: Settings
-  scanHistory?: string[]
+  settings: Settings
 }
 
-function isArchivedItem(x: Item): boolean {
-  // tout ce qui n'est plus "active" est considéré comme historique
-  return x.status !== 'active'
-}
-
-export async function exportDataV1(opts: ExportOptions): Promise<ExportBlobV1> {
+export async function exportAllData(): Promise<ExportData> {
   const db = await getDb()
-  const all = await db.getAll('items')
-  const items = opts.includeArchived ? all : all.filter((x) => !isArchivedItem(x as Item))
-
-  const out: ExportBlobV1 = {
-    schemaVersion: 1,
-    exportedAt: Date.now(),
-    deviceId: getDeviceId(),
-    items,
-  }
-
-  if (opts.includeSettings) out.settings = await getSettings()
-  if (opts.includeScanHistory) out.scanHistory = loadScanHistory()
-
-  return out
-}
-
-export async function exportPreview(opts: ExportOptions) {
-  const db = await getDb()
-  const all = await db.getAll('items')
-  const archived = all.filter((x) => isArchivedItem(x as Item)).length
-  const included = opts.includeArchived ? all.length : all.length - archived
+  const items = await db.getAll('items')
+  const settings = await getSettings()
 
   return {
-    totalItems: all.length,
-    archivedItems: archived,
-    includedItems: included,
-    scanHistoryCount: opts.includeScanHistory ? loadScanHistory().length : 0,
-    includesSettings: opts.includeSettings,
+    version: 1,
+    exportedAt: Date.now(),
+    items,
+    settings
   }
+}
+
+export function downloadJSON(data: ExportData, filename: string = 'frigo-backup.json') {
+  const json = JSON.stringify(data, null, 2)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function clearAllData() {
+  const db = await getDb()
+  
+  // Supprimer tous les items
+  const items = await db.getAll('items')
+  for (const item of items) {
+    await db.delete('items', item.id)
+  }
+  
+  // Supprimer les settings
+  await db.delete('settings', 'main')
+  
+  // Nettoyer localStorage
+  localStorage.clear()
 }

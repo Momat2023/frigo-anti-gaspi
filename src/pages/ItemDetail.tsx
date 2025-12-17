@@ -1,163 +1,253 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { getDb, deleteItem } from '../data/db'
 import Header from '../ui/Header'
-import { deleteItem, getItem, setStatus, updateItem } from '../data/db'
-import type { Item, Location } from '../data/types'
-import { buildEatReminderIcs, downloadTextFile } from '../utils/ics'
+import type { Item, Location, Category } from '../data/types'
 
 export default function ItemDetail() {
-  const { id } = useParams()
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-
-  // Guard ID (et on crée une constante string)
-  if (!id) {
-    return (
-      <>
-        <Header />
-        <main style={{ padding: 12 }}>ID manquant</main>
-      </>
-    )
-  }
-  const itemId: string = id
-
   const [item, setItem] = useState<Item | null>(null)
+  const [editing, setEditing] = useState(false)
 
-  // Champs éditables
   const [name, setName] = useState('')
-  const [targetDays, setTargetDays] = useState(3)
-  const [location, setLocation] = useState<Location>('fridge')
-
-  // Jour 6: rappel calendrier
-  const [remindInDays, setRemindInDays] = useState(0)
+  const [category, setCategory] = useState<Category>('Autre')
+  const [location, setLocation] = useState<Location>('Frigo')
+  const [targetDays, setTargetDays] = useState(7)
 
   useEffect(() => {
-    getItem(itemId).then((it) => {
-      if (!it) return
-      setItem(it)
-      setName(it.name)
-      setTargetDays(it.targetDays)
-      setLocation(it.location)
-      setRemindInDays(it.targetDays)
+    load()
+  }, [id])
+
+  async function load() {
+    if (!id) return
+    const db = await getDb()
+    const all = await db.getAll('items')
+    const it = all.find(x => x.id === Number(id))
+    if (!it) return
+    setItem(it)
+    setName(it.name)
+    setCategory(it.category)
+    setLocation(it.location)
+    setTargetDays(it.targetDays)
+  }
+
+  async function handleSave() {
+    if (!item) return
+    const db = await getDb()
+    await db.put('items', {
+      ...item,
+      name,
+      category,
+      location,
+      targetDays,
     })
-  }, [itemId])
+    setEditing(false)
+    load()
+  }
+
+  async function handleDelete() {
+    if (!item) return
+    if (!confirm('Supprimer cet aliment ?')) return
+    await deleteItem(item.id)
+    navigate('/home')
+  }
 
   if (!item) {
     return (
       <>
         <Header />
-        <main style={{ padding: 12 }}>Chargement…</main>
+        <main style={{ padding: 12 }}>Chargement...</main>
       </>
     )
-  }
-
-  // Constante locale non-null (évite les problèmes de narrowing dans closures)
-  const it: Item = item
-
-  const remindAtText = useMemo(() => {
-    const ms = it.openedAt + remindInDays * 24 * 60 * 60 * 1000
-    return new Date(ms).toLocaleString()
-  }, [it.openedAt, remindInDays])
-
-  async function onSave() {
-    const updated: Item = {
-      ...it,
-      name: name.trim() || it.name,
-      targetDays,
-      location,
-    }
-    await updateItem(updated)
-    navigate('/')
-  }
-
-  async function onMark(status: 'eaten' | 'thrown') {
-    await setStatus(itemId, status)
-    navigate('/')
-  }
-
-  async function onDelete() {
-    await deleteItem(itemId)
-    navigate('/')
-  }
-
-  function onAddToCalendar() {
-    const remindAt = new Date(it.openedAt + remindInDays * 24 * 60 * 60 * 1000)
-    const startUtc = remindAt
-    const endUtc = new Date(remindAt.getTime() + 60 * 1000)
-
-    const ics = buildEatReminderIcs({
-      title: `Manger: ${it.name}`,
-      description: `Rappel Frigo Anti-Gaspi. Aliment ajouté le ${new Date(it.openedAt).toLocaleString()}.`,
-      uid: `${it.id}@frigo-antigaspi.local`,
-      startUtc,
-      endUtc,
-    })
-
-    const safeName = it.name.trim() ? it.name.trim() : 'aliment'
-    downloadTextFile(`rappel-${safeName.replace(/\s+/g, '-').toLowerCase()}.ics`, ics)
   }
 
   return (
     <>
       <Header />
-      <main style={{ padding: 12, display: 'grid', gap: 12 }}>
-        <h1>Détail</h1>
+      <main style={{ padding: 12, maxWidth: 600, margin: '0 auto' }}>
+        {editing ? (
+          <>
+            <h1 style={{ marginBottom: 24 }}>✏️ Modifier</h1>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Nom</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  fontSize: 16
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Catégorie</label>
+              <select
+                value={category}
+                onChange={e => setCategory(e.target.value as Category)}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  fontSize: 16
+                }}
+              >
+                <option>Fruits & Légumes</option>
+                <option>Viandes & Poissons</option>
+                <option>Produits laitiers</option>
+                <option>Boissons</option>
+                <option>Conserves</option>
+                <option>Surgelés</option>
+                <option>Autre</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Emplacement</label>
+              <select
+                value={location}
+                onChange={e => setLocation(e.target.value as Location)}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  fontSize: 16
+                }}
+              >
+                <option>Frigo</option>
+                <option>Congélateur</option>
+                <option>Placard</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+                Jours de conservation
+              </label>
+              <input
+                type="number"
+                value={targetDays}
+                onChange={e => setTargetDays(Number(e.target.value))}
+                min={1}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  fontSize: 16
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={handleSave}
+                style={{
+                  flex: 1,
+                  padding: '14px',
+                  backgroundColor: '#6366f1',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Enregistrer
+              </button>
+              <button
+                onClick={() => setEditing(false)}
+                style={{
+                  padding: '14px 24px',
+                  backgroundColor: 'white',
+                  color: '#6b7280',
+                  border: '1px solid #d1d5db',
+                  borderRadius: 8,
+                  fontSize: 16,
+                  cursor: 'pointer'
+                }}
+              >
+                Annuler
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 style={{ marginBottom: 24 }}>{item.name}</h1>
+            
+            {item.imageUrl && (
+              <div style={{ marginBottom: 16, textAlign: 'center' }}>
+                <img 
+                  src={item.imageUrl} 
+                  alt={item.name}
+                  style={{ 
+                    maxWidth: 200, 
+                    height: 'auto',
+                    borderRadius: 8
+                  }}
+                />
+              </div>
+            )}
+            
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ marginBottom: 12 }}>
+                <strong>Catégorie:</strong> {item.category}
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <strong>Emplacement:</strong> {item.location}
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <strong>Ajouté le:</strong> {new Date(item.createdAt).toLocaleDateString()}
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <strong>Conservation:</strong> {item.targetDays} jours
+              </div>
+              {item.barcode && (
+                <div style={{ marginBottom: 12 }}>
+                  <strong>Code-barres:</strong> {item.barcode}
+                </div>
+              )}
+            </div>
 
-        <label>
-          Nom
-          <input value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-
-        <label>
-          Emplacement
-          <select value={location} onChange={(e) => setLocation(e.target.value as Location)}>
-            <option value="fridge">Frigo</option>
-            <option value="freezer">Congélateur</option>
-          </select>
-        </label>
-
-        <label>
-          Rappel (jours) — pour le tri “à consommer d’abord”
-          <input
-            type="number"
-            min={1}
-            max={30}
-            value={targetDays}
-            onChange={(e) => setTargetDays(Number(e.target.value))}
-          />
-        </label>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onSave}>Enregistrer</button>
-          <button onClick={() => onMark('eaten')}>Consommé</button>
-          <button onClick={() => onMark('thrown')}>Jeté</button>
-        </div>
-
-        <hr />
-
-        <h2>Rappel calendrier</h2>
-
-        <label>
-          Ajouter au calendrier dans (jours)
-          <input
-            type="number"
-            min={0}
-            max={30}
-            value={remindInDays}
-            onChange={(e) => setRemindInDays(Number(e.target.value))}
-          />
-        </label>
-
-        <div style={{ fontSize: 12, opacity: 0.75 }}>
-          Le rappel sera le : {remindAtText}
-        </div>
-
-        <button onClick={onAddToCalendar}>Ajouter au calendrier (.ics)</button>
-
-        <hr />
-
-        <button onClick={onDelete}>Supprimer</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <button
+                onClick={() => setEditing(true)}
+                style={{
+                  padding: '14px',
+                  backgroundColor: '#6366f1',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Modifier
+              </button>
+              <button
+                onClick={handleDelete}
+                style={{
+                  padding: '14px',
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Supprimer
+              </button>
+            </div>
+          </>
+        )}
       </main>
     </>
   )
 }
-

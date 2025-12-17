@@ -1,29 +1,37 @@
-export type Location = 'fridge' | 'freezer'
-export type ItemStatus = 'active' | 'eaten' | 'thrown'
+export type Item = {
+  id: number
+  name: string
+  category: Category
+  expiresAt: number
+  location: Location
+  status: 'active' | 'eaten' | 'thrown'
+  createdAt: number
+  openedAt: number
+  targetDays: number
+  barcode?: string
+  imageUrl?: string
+}
 
-export type Category =
+export type Category = 
+  | 'Fruits & Légumes'
+  | 'Viandes & Poissons'
+  | 'Produits laitiers'
+  | 'Boissons'
+  | 'Conserves'
+  | 'Surgelés'
+  | 'Autre'
   | 'cooked_dish'
   | 'soup'
   | 'cooked_fish_poultry'
   | 'meat_sauce'
 
-export type Item = {
-  id: string
-  name: string
-  category: Category
-  location: Location
-  openedAt: number
-  targetDays: number
-  status: ItemStatus
-  createdAt: number
-
-  // V2+
-  barcode?: string
-  ownerName?: string
-}
+export type Location = 'Frigo' | 'Congélateur' | 'Placard'
 
 export type Settings = {
-  key: 'main'
-  defaultDaysByCategory: Record<Category, number>
-  updatedAt: number
+  key: string
+  notificationsEnabled: boolean
+  defaultLocation: Location
+  defaultTargetDays: number
+  defaultDaysByCategory?: Record<string, number>
+  updatedAt?: number
 }

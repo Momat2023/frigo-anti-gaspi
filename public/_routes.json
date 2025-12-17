@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": ["/robots.txt", "/_headers", "/manifest.json", "/icons/*", "/assets/*", "/*.png", "/*.svg", "/*.ico", "/sw.js", "/registerSW.js"]
+}

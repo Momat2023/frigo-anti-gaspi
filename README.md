@@ -1,73 +1,48 @@
-# React + TypeScript + Vite
+# 🧊 Frigo Anti-Gaspi
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **Application Progressive Web App (PWA) pour gérer votre frigo et réduire le gaspillage alimentaire**
 
-Currently, two official plugins are available:
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/VOTRE_USERNAME/frigo-anti-gaspi)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## ✨ Fonctionnalités
 
-## Expanding the ESLint configuration
+### 🍽️ Gestion intelligente des aliments
+- ✅ Ajout manuel ou par scan de code-barres
+- ✅ Reconnaissance automatique via Open Food Facts (nom, image, Nutri-Score)
+- ✅ Dates de péremption suggérées par catégorie
+- ✅ Suivi du statut (actif, consommé, jeté)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 📊 Gamification & Statistiques
+- 🏆 **8 badges** à débloquer (Premier pas, Héros anti-gaspi, Maître du streak...)
+- 🔥 **Streak** - Jours consécutifs sans gaspillage
+- 📈 Taux de réussite et graphiques d'évolution
+- 💰 Calcul de l'argent économisé vs gaspillé
+- 🎯 Widget motivation avec progression vers le prochain badge
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 🍳 Suggestions de Recettes
+- 🔍 Recherche par ingrédient
+- 🤖 Suggestions basées sur vos aliments urgents
+- 📖 Recettes détaillées (photo, ingrédients, instructions, vidéo YouTube)
+- 🌍 Base de données TheMealDB (gratuite)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 🔔 Notifications Push
+- ⏰ Rappels programmés avant expiration
+- ⚙️ Délai configurable (0-3 jours avant)
+- 🎉 Notifications de badges débloqués
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### 📱 Progressive Web App
+- 📲 Installable sur mobile et desktop
+- ⚡ Fonctionne hors ligne
+- 🎨 Interface responsive et moderne
+- 🚀 Performance optimisée (Lighthouse 90+)
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 🚀 Installation & Déploiement
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### Développement local

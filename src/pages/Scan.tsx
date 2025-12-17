@@ -1,198 +1,317 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BrowserMultiFormatReader } from '@zxing/library'
 import Header from '../ui/Header'
-import { loadScanHistory, pushScanHistory } from '../data/scanHistory'
-
-type CamState = 'idle' | 'starting' | 'running' | 'error'
+import { 
+  getProductByBarcode, 
+  formatProductName, 
+  mapToAppCategory, 
+  suggestExpirationDays,
+  type OpenFoodFactsProduct 
+} from '../services/openFoodFacts'
 
 export default function Scan() {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [scanning, setScanning] = useState(true)
+  const [error, setError] = useState('')
+  const [scannedCode, setScannedCode] = useState('')
+  const [productInfo, setProductInfo] = useState<OpenFoodFactsProduct | null>(null)
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-
-  const [state, setState] = useState<CamState>('idle')
-  const [error, setError] = useState<string | null>(null)
-
-  const [detected, setDetected] = useState<string | null>(null)
-  const [manual, setManual] = useState('')
-  const [history, setHistory] = useState<string[]>(() => loadScanHistory())
-
-  const canVibrate = useMemo(() => typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function', [])
-  const canUseCamera = useMemo(() => !!navigator.mediaDevices?.getUserMedia, [])
-  const hasBarcodeDetector = useMemo(() => typeof (globalThis as any).BarcodeDetector !== 'undefined', [])
-
-  async function startCamera() {
-    try {
-      setError(null)
-      setDetected(null)
-      setState('starting')
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: 'environment' } },
-      })
-
-      streamRef.current = stream
-
-      const video = videoRef.current
-      if (!video) throw new Error('Video element introuvable')
-
-      video.srcObject = stream
-      video.playsInline = true
-      await video.play()
-
-      setState('running')
-    } catch (e: any) {
-      setState('error')
-      setError(e?.message ?? 'Impossible de démarrer la caméra')
-    }
-  }
-
-  function stopCamera() {
-    const stream = streamRef.current
-    if (stream) stream.getTracks().forEach((t) => t.stop())
-    streamRef.current = null
-
-    const video = videoRef.current
-    if (video) {
-      video.pause()
-      video.srcObject = null
-    }
-
-    setState('idle')
-  }
-
-  function acceptCode(code: string) {
-    const c = code.trim()
-    if (!c) return
-    setDetected(c)
-    pushScanHistory(c)
-    setHistory(loadScanHistory())
-    if (canVibrate) navigator.vibrate(50)
-    stopCamera()
-  }
-
-  // Scan loop
   useEffect(() => {
-    if (state !== 'running') return
-    if (!hasBarcodeDetector) return
-    if (detected) return
+    const codeReader = new BrowserMultiFormatReader()
+    let active = true
 
-    const Detector = (globalThis as any).BarcodeDetector
-    const detector = new Detector({ formats: ['qr_code', 'ean_13'] })
-
-    const timer = window.setInterval(async () => {
+    async function startScan() {
       try {
-        const video = videoRef.current
-        const canvas = canvasRef.current
-        if (!video || !canvas) return
-        if (video.readyState < 2) return
-        if (!video.videoWidth || !video.videoHeight) return
+        const videoInputDevices = await codeReader.listVideoInputDevices()
+        if (videoInputDevices.length === 0) {
+          setError('Aucune caméra détectée')
+          return
+        }
 
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const backCamera = videoInputDevices.find(device =>
+          device.label.toLowerCase().includes('back') ||
+          device.label.toLowerCase().includes('arrière') ||
+          device.label.toLowerCase().includes('environment')
+        )
+        const deviceId = backCamera?.deviceId || videoInputDevices[0].deviceId
 
-        const results = await detector.detect(canvas)
-        const value = results?.[0]?.rawValue ?? null
-        if (value) acceptCode(value)
-      } catch {
-        // ignore (fallback manuel)
+        await codeReader.decodeFromVideoDevice(
+          deviceId,
+          videoRef.current!,
+          async (result) => {
+            if (result && active) {
+              const code = result.getText()
+              setScannedCode(code)
+              setScanning(false)
+              setLoading(true)
+
+              codeReader.reset()
+              
+              const productData = await getProductByBarcode(code)
+              
+              if (productData.status === 1 && productData.product) {
+                setProductInfo(productData.product)
+              } else {
+                setProductInfo(null)
+              }
+              
+              setLoading(false)
+            }
+          }
+        )
+      } catch (err) {
+        console.error(err)
+        setError('Erreur caméra : ' + (err as Error).message)
       }
-    }, 300)
+    }
 
-    return () => window.clearInterval(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, detected, hasBarcodeDetector])
+    if (scanning) {
+      startScan()
+    }
 
-  useEffect(() => () => stopCamera(), [])
+    return () => {
+      active = false
+      codeReader.reset()
+    }
+  }, [scanning])
 
-  function useDetected() {
-    if (!detected) return
-    navigate(`/add?barcode=${encodeURIComponent(detected)}`)
+  const handleUseProduct = () => {
+    if (!productInfo) {
+      navigate('/add', { state: { barcode: scannedCode } })
+      return
+    }
+
+    const category = mapToAppCategory(productInfo.categories, productInfo.categories_tags)
+    const expirationDays = suggestExpirationDays(category)
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + expirationDays)
+
+    navigate('/add', {
+      state: {
+        barcode: scannedCode,
+        name: formatProductName(productInfo),
+        category,
+        expiresAt: expiresAt.toISOString().split('T')[0],
+        location: 'Frigo',
+        imageUrl: productInfo.image_url
+      }
+    })
   }
 
-  function rescan() {
-    setDetected(null)
-    startCamera()
+  const handleRescan = () => {
+    setScannedCode('')
+    setProductInfo(null)
+    setError('')
+    setScanning(true)
   }
 
-  function useManual() {
-    acceptCode(manual)
-    if (manual.trim()) navigate(`/add?barcode=${encodeURIComponent(manual.trim())}`)
+  if (error) {
+    return (
+      <>
+        <Header />
+        <main style={{ padding: 12, textAlign: 'center' }}>
+          <div style={{ marginTop: 48 }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>❌</div>
+            <p style={{ color: '#dc2626', marginBottom: 16 }}>{error}</p>
+            <button
+              onClick={() => navigate('/add')}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: 8,
+                fontSize: 16,
+                cursor: 'pointer'
+              }}
+            >
+              Ajouter manuellement
+            </button>
+          </div>
+        </main>
+      </>
+    )
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <main style={{ padding: 12, textAlign: 'center' }}>
+          <div style={{ marginTop: 48 }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
+            <p>Recherche du produit...</p>
+          </div>
+        </main>
+      </>
+    )
+  }
+
+  if (scannedCode && !scanning) {
+    return (
+      <>
+        <Header />
+        <main style={{ padding: 12, maxWidth: 600, margin: '0 auto' }}>
+          <h1 style={{ marginBottom: 16 }}>✅ Code scanné</h1>
+          
+          <div style={{ 
+            padding: 16, 
+            backgroundColor: '#f3f4f6', 
+            borderRadius: 12,
+            marginBottom: 24
+          }}>
+            <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 4 }}>Code-barres</div>
+            <div style={{ fontSize: 20, fontWeight: 'bold', fontFamily: 'monospace' }}>
+              {scannedCode}
+            </div>
+          </div>
+
+          {productInfo ? (
+            <div style={{
+              padding: 16,
+              backgroundColor: '#ecfdf5',
+              border: '2px solid #6ee7b7',
+              borderRadius: 12,
+              marginBottom: 24
+            }}>
+              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: '#059669' }}>
+                ✨ Produit trouvé !
+              </div>
+              
+              {productInfo.image_url && (
+                <img 
+                  src={productInfo.image_url} 
+                  alt={productInfo.product_name}
+                  style={{ 
+                    width: '100%', 
+                    maxWidth: 200, 
+                    height: 'auto',
+                    borderRadius: 8,
+                    marginBottom: 12
+                  }}
+                />
+              )}
+              
+              <div style={{ marginBottom: 8 }}>
+                <strong>{formatProductName(productInfo)}</strong>
+              </div>
+              
+              {productInfo.quantity && (
+                <div style={{ fontSize: 14, color: '#065f46', marginBottom: 4 }}>
+                  📦 {productInfo.quantity}
+                </div>
+              )}
+              
+              {productInfo.categories && (
+                <div style={{ fontSize: 14, color: '#065f46', marginBottom: 4 }}>
+                  🏷️ {productInfo.categories.split(',')[0]}
+                </div>
+              )}
+              
+              {productInfo.nutrition_grades && (
+                <div style={{ fontSize: 14, color: '#065f46' }}>
+                  🥗 Nutri-Score: {productInfo.nutrition_grades.toUpperCase()}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{
+              padding: 16,
+              backgroundColor: '#fef2f2',
+              border: '2px solid #fca5a5',
+              borderRadius: 12,
+              marginBottom: 24
+            }}>
+              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: '#991b1b' }}>
+                ℹ️ Produit non trouvé
+              </div>
+              <div style={{ fontSize: 14, color: '#7f1d1d' }}>
+                Ce code-barres n'est pas dans la base Open Food Facts. 
+                Vous pourrez saisir les informations manuellement.
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              onClick={handleUseProduct}
+              style={{
+                flex: 1,
+                padding: '14px 24px',
+                backgroundColor: '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: 8,
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {productInfo ? 'Utiliser ces infos' : 'Saisir manuellement'}
+            </button>
+            
+            <button
+              onClick={handleRescan}
+              style={{
+                padding: '14px 24px',
+                backgroundColor: 'white',
+                color: '#6366f1',
+                border: '2px solid #6366f1',
+                borderRadius: 8,
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Rescanner
+            </button>
+          </div>
+        </main>
+      </>
+    )
   }
 
   return (
     <>
       <Header />
-      <main style={{ padding: 12, display: 'grid', gap: 12 }}>
-        <h1>Scan</h1>
-
-        {detected && (
-          <div style={{ border: '1px solid #ddd', borderRadius: 12, padding: 12 }}>
-            <div>
-              Détecté : <strong>{detected}</strong>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button onClick={useDetected}>Utiliser ce code</button>
-              <button onClick={rescan}>Rescanner</button>
-            </div>
-          </div>
-        )}
-
-        {!hasBarcodeDetector && (
-          <div style={{ fontSize: 12, opacity: 0.75 }}>
-            BarcodeDetector non disponible (polyfill devrait le fournir; sinon on passe en saisie manuelle).
-          </div>
-        )}
-
-        <div style={{ background: '#111', borderRadius: 12, overflow: 'hidden' }}>
+      <main style={{ padding: 12, textAlign: 'center' }}>
+        <h1 style={{ marginBottom: 16 }}>📷 Scanner un code-barres</h1>
+        <p style={{ marginBottom: 24, color: '#6b7280' }}>
+          Pointez la caméra vers le code-barres
+        </p>
+        
+        <div style={{ 
+          maxWidth: 500, 
+          margin: '0 auto',
+          borderRadius: 12,
+          overflow: 'hidden',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+        }}>
           <video
             ref={videoRef}
-            style={{ width: '100%', height: '45vh', objectFit: 'cover', display: 'block' }}
-            muted
+            style={{ width: '100%', height: 'auto', display: 'block' }}
           />
         </div>
 
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={startCamera} disabled={!canUseCamera || state === 'starting' || state === 'running'}>
-            {state === 'starting' ? 'Démarrage…' : 'Démarrer'}
-          </button>
-          <button onClick={stopCamera} disabled={state !== 'running'}>
-            Stop
-          </button>
-          <button onClick={() => acceptCode(manual)} disabled={!manual.trim()}>
-            Valider saisie
+        <div style={{ marginTop: 24 }}>
+          <button
+            onClick={() => navigate('/add')}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: 'white',
+              color: '#6366f1',
+              border: '2px solid #6366f1',
+              borderRadius: 8,
+              fontSize: 16,
+              cursor: 'pointer'
+            }}
+          >
+            Ajouter manuellement
           </button>
         </div>
-
-        <label>
-          Saisie manuelle (si scan difficile)
-          <input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="EAN-13 / QR raw value" />
-        </label>
-
-        <button onClick={useManual} disabled={!manual.trim()}>
-          Utiliser la saisie
-        </button>
-
-        {history.length > 0 && (
-          <div style={{ display: 'grid', gap: 6 }}>
-            <div style={{ fontSize: 12, opacity: 0.75 }}>Historique</div>
-            {history.map((c) => (
-              <button key={c} onClick={() => setManual(c)} style={{ textAlign: 'left' }}>
-                {c}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {error && <div style={{ color: 'crimson' }}>Erreur : {error}</div>}
       </main>
     </>
   )

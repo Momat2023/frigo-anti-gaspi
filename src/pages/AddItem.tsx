@@ -1,157 +1,212 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { addItem } from '../data/db'
 import Header from '../ui/Header'
-import { addItem, getSettings, newId } from '../data/db'
-import type { Category, Item, Location } from '../data/types'
-import { CATEGORY_LABEL, DEFAULT_DAYS } from '../data/presets'
-
-type DaysMap = Record<Category, number>
+import { scheduleNotification, areNotificationsEnabled } from '../services/notifications'
+import type { Category, Location } from '../data/types'
 
 export default function AddItem() {
-  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const state = location.state as any
 
-  const [name, setName] = useState('')
-  const [barcode, setBarcode] = useState('')
+  const [name, setName] = useState(state?.name || '')
+  const [category, setCategory] = useState<Category>(state?.category || 'Autre')
+  const [expiresAt, setExpiresAt] = useState(state?.expiresAt || '')
+  const [itemLocation, setItemLocation] = useState<Location>(state?.location || 'Frigo')
+  const [barcode] = useState(state?.barcode || '')
+  const [imageUrl] = useState(state?.imageUrl || '')
 
-  const [location, setLocation] = useState<Location>('fridge')
-  const [category, setCategory] = useState<Category>('cooked_dish')
-
-  const [defaultDays, setDefaultDays] = useState<DaysMap>(DEFAULT_DAYS)
-  const [targetDays, setTargetDays] = useState<number>(DEFAULT_DAYS.cooked_dish)
-
-  // Pré-remplir depuis l'URL (?barcode=...)
   useEffect(() => {
-    const b = searchParams.get('barcode') ?? ''
-    if (b) setBarcode(b)
-  }, [searchParams])
-
-  // Charger settings au montage
-  useEffect(() => {
-    getSettings().then((s) => {
-      setDefaultDays(s.defaultDaysByCategory)
-      setTargetDays(s.defaultDaysByCategory[category])
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Quand catégorie change -> proposer la durée par défaut
-  useEffect(() => {
-    setTargetDays(defaultDays[category])
-  }, [category, defaultDays])
-
-  const categories = useMemo(() => Object.keys(CATEGORY_LABEL) as Category[], [])
-
-  async function quickAdd(preset: { name: string; category: Category }) {
-    const item: Item = {
-      id: newId(),
-      name: (name.trim() || preset.name).trim(),
-      category: preset.category,
-      location,
-      openedAt: Date.now(),
-      targetDays: defaultDays[preset.category],
-      status: 'active',
-      createdAt: Date.now(),
-      ...(barcode.trim() ? { barcode: barcode.trim() } : {}),
+    if (!expiresAt) {
+      const future = new Date()
+      future.setDate(future.getDate() + 7)
+      setExpiresAt(future.toISOString().split('T')[0])
     }
-    await addItem(item)
-    setName('')
-    setBarcode('')
-    alert('Ajouté !')
-  }
+  }, [expiresAt])
 
-  async function onSave() {
-    const item: Item = {
-      id: newId(),
-      name: (name.trim() || 'Sans nom').trim(),
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) return
+
+    const expiresAtMs = new Date(expiresAt).getTime()
+    
+    const newItem = await addItem({
+      name: name.trim(),
       category,
-      location,
-      openedAt: Date.now(),
-      targetDays,
-      status: 'active',
-      createdAt: Date.now(),
-      ...(barcode.trim() ? { barcode: barcode.trim() } : {}),
+      expiresAt: expiresAtMs,
+      location: itemLocation,
+      targetDays: 7,
+      barcode: barcode || undefined,
+      imageUrl: imageUrl || undefined
+    })
+
+    // Programmer une notification si activées
+    if (areNotificationsEnabled()) {
+      const notifDaysBefore = parseInt(
+        localStorage.getItem('notification-days-before') || '1'
+      )
+      scheduleNotification(newItem.id, newItem.name, expiresAtMs, notifDaysBefore)
     }
-    await addItem(item)
-    setName('')
-    setBarcode('')
-    alert('Ajouté !')
+
+    navigate('/home')
   }
 
   return (
     <>
       <Header />
-      <main style={{ padding: 12, display: 'grid', gap: 12 }}>
-        <h1>Ajouter</h1>
+      <main style={{ padding: 12, maxWidth: 600, margin: '0 auto' }}>
+        <h1 style={{ marginBottom: 24 }}>➕ Ajouter un aliment</h1>
 
-        <label>
-          Code-barres (optionnel)
-          <input
-            value={barcode}
-            onChange={(e) => setBarcode(e.target.value)}
-            placeholder="EAN-13 / QR raw value"
-          />
-        </label>
+        {barcode && (
+          <div style={{
+            padding: 12,
+            backgroundColor: '#eff6ff',
+            border: '1px solid #93c5fd',
+            borderRadius: 8,
+            marginBottom: 16,
+            fontSize: 14
+          }}>
+            <strong>Code-barres:</strong> {barcode}
+          </div>
+        )}
 
-        <label>
-          Nom (optionnel)
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ex: Restes pâtes"
-          />
-        </label>
+        {imageUrl && (
+          <div style={{ marginBottom: 16, textAlign: 'center' }}>
+            <img 
+              src={imageUrl} 
+              alt="Produit"
+              style={{ 
+                maxWidth: 150, 
+                height: 'auto',
+                borderRadius: 8,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+              }}
+            />
+          </div>
+        )}
 
-        <label>
-          Emplacement
-          <select value={location} onChange={(e) => setLocation(e.target.value as Location)}>
-            <option value="fridge">Frigo</option>
-            <option value="freezer">Congélateur</option>
-          </select>
-        </label>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+              Nom *
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ex: Yaourt nature"
+              required
+              style={{
+                width: '100%',
+                padding: 12,
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 16
+              }}
+            />
+          </div>
 
-        <div style={{ display: 'grid', gap: 8 }}>
-          <strong>Ajout rapide</strong>
-          <button onClick={() => quickAdd({ name: 'Plat cuisiné', category: 'cooked_dish' })}>
-            Restes / plat cuisiné (J+{defaultDays.cooked_dish})
-          </button>
-          <button onClick={() => quickAdd({ name: 'Soupe', category: 'soup' })}>
-            Soupe (J+{defaultDays.soup})
-          </button>
-          <button onClick={() => quickAdd({ name: 'Poisson/volaille cuits', category: 'cooked_fish_poultry' })}>
-            Poisson / volaille cuits (J+{defaultDays.cooked_fish_poultry})
-          </button>
-          <button onClick={() => quickAdd({ name: 'Sauce viande', category: 'meat_sauce' })}>
-            Sauce / bouillon viande (J+{defaultDays.meat_sauce})
-          </button>
-        </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+              Catégorie
+            </label>
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value as Category)}
+              style={{
+                width: '100%',
+                padding: 12,
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 16
+              }}
+            >
+              <option>Fruits & Légumes</option>
+              <option>Viandes & Poissons</option>
+              <option>Produits laitiers</option>
+              <option>Boissons</option>
+              <option>Conserves</option>
+              <option>Surgelés</option>
+              <option>Autre</option>
+            </select>
+          </div>
 
-        <hr />
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+              Date de péremption *
+            </label>
+            <input
+              type="date"
+              value={expiresAt}
+              onChange={e => setExpiresAt(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: 12,
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 16
+              }}
+            />
+          </div>
 
-        <h2>Ajout détaillé</h2>
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+              Emplacement
+            </label>
+            <select
+              value={itemLocation}
+              onChange={e => setItemLocation(e.target.value as Location)}
+              style={{
+                width: '100%',
+                padding: 12,
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 16
+              }}
+            >
+              <option>Frigo</option>
+              <option>Congélateur</option>
+              <option>Placard</option>
+            </select>
+          </div>
 
-        <label>
-          Catégorie
-          <select value={category} onChange={(e) => setCategory(e.target.value as Category)}>
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {CATEGORY_LABEL[cat]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Rappel (jours)
-          <input
-            type="number"
-            min={1}
-            max={30}
-            value={targetDays}
-            onChange={(e) => setTargetDays(Number(e.target.value))}
-          />
-        </label>
-
-        <button onClick={onSave}>Enregistrer</button>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              type="submit"
+              style={{
+                flex: 1,
+                padding: '14px',
+                backgroundColor: '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: 8,
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Ajouter
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => navigate('/home')}
+              style={{
+                padding: '14px 24px',
+                backgroundColor: 'white',
+                color: '#6b7280',
+                border: '1px solid #d1d5db',
+                borderRadius: 8,
+                fontSize: 16,
+                cursor: 'pointer'
+              }}
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
       </main>
     </>
   )
