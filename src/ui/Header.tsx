@@ -30,37 +30,52 @@ export default function Header() {
             style={{
               color: location.pathname === '/home' ? 'white' : 'rgba(255,255,255,0.7)',
               textDecoration: 'none',
-              fontWeight: location.pathname === '/home' ? 600 : 400
+              fontWeight: location.pathname === '/home' ? 600 : 400,
+              fontSize: 14
             }}
           >
-            🏠 Frigo
+            🏠
+          </Link>
+          <Link
+            to="/scan"
+            style={{
+              color: location.pathname === '/scan' ? 'white' : 'rgba(255,255,255,0.7)',
+              textDecoration: 'none',
+              fontWeight: location.pathname === '/scan' ? 600 : 400,
+              fontSize: 14
+            }}
+          >
+            📷 Scan
           </Link>
           <Link
             to="/add"
             style={{
               color: location.pathname === '/add' ? 'white' : 'rgba(255,255,255,0.7)',
               textDecoration: 'none',
-              fontWeight: location.pathname === '/add' ? 600 : 400
+              fontWeight: location.pathname === '/add' ? 600 : 400,
+              fontSize: 14
             }}
           >
-            ➕ Ajouter
+            ➕
           </Link>
           <Link
             to="/stats"
             style={{
               color: location.pathname === '/stats' ? 'white' : 'rgba(255,255,255,0.7)',
               textDecoration: 'none',
-              fontWeight: location.pathname === '/stats' ? 600 : 400
+              fontWeight: location.pathname === '/stats' ? 600 : 400,
+              fontSize: 14
             }}
           >
-            📊 Stats
+            📊
           </Link>
           <Link
             to="/settings"
             style={{
               color: location.pathname === '/settings' ? 'white' : 'rgba(255,255,255,0.7)',
               textDecoration: 'none',
-              fontWeight: location.pathname === '/settings' ? 600 : 400
+              fontWeight: location.pathname === '/settings' ? 600 : 400,
+              fontSize: 14
             }}
           >
             ⚙️

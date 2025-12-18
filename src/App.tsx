@@ -18,8 +18,8 @@ export default function App() {
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/home" element={<Home />} />
-        <Route path="/add" element={<AddItem />} />
         <Route path="/scan" element={<Scan />} />
+        <Route path="/add" element={<AddItem />} />
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/recipes" element={<Recipes />} />
         <Route path="/settings" element={<Settings />} />
