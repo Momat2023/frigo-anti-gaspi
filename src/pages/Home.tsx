@@ -5,9 +5,13 @@ import Header from '../ui/Header'
 import BadgeToast from '../ui/BadgeToast'
 import MotivationWidget from '../ui/MotivationWidget'
 import StreakDisplay from '../ui/StreakDisplay'
+import XPBar from '../ui/XPBar'
+import LevelUpModal from '../ui/LevelUpModal'
 import { useBadgeNotification } from '../hooks/useBadgeNotification'
+import { useLevelUp } from '../hooks/useLevelUp'
 import { Link, useNavigate } from 'react-router-dom'
 import { trackEvent } from '../services/analytics'
+import { addXP } from '../data/xp'
 
 function getUrgencyClass(item: Item) {
   const msTarget = item.openedAt + item.targetDays * 24 * 60 * 60 * 1000
@@ -24,7 +28,8 @@ function getUrgencyClass(item: Item) {
 export default function Home() {
   const [items, setItems] = useState<Item[]>([])
   const { newBadge, dismissBadge, checkForNewBadges } = useBadgeNotification()
-  const [refreshWidget, setRefreshWidget] = useState(0)
+  const { levelUpData, dismissLevelUp, checkForLevelUp } = useLevelUp()
+  const [refreshKey, setRefreshKey] = useState(0)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -53,6 +58,13 @@ export default function Home() {
     await db.put('items', { ...item, status })
     await load()
     
+    // XP selon l'action
+    if (status === 'eaten') {
+      await addXP('ITEM_CONSUMED', { itemName: item.name })
+    } else {
+      await addXP('ITEM_THROWN', { itemName: item.name })
+    }
+    
     // Track event
     trackEvent('item_marked', { 
       status, 
@@ -61,7 +73,8 @@ export default function Home() {
     })
     
     await checkForNewBadges()
-    setRefreshWidget(prev => prev + 1)
+    await checkForLevelUp()
+    setRefreshKey(prev => prev + 1)
   }
 
   function handleCookSuggestions() {
@@ -89,13 +102,24 @@ export default function Home() {
       <Header />
       <BadgeToast badge={newBadge} onClose={dismissBadge} />
       
+      {levelUpData && (
+        <LevelUpModal
+          newLevel={levelUpData.newLevel}
+          rewards={levelUpData.rewards}
+          onClose={dismissLevelUp}
+        />
+      )}
+      
       <main style={{ padding: 12 }}>
         <h1 style={{ marginBottom: 16 }}>🏠 Mon Frigo</h1>
 
-        {/* NOUVEAU : Streak Display en premier */}
-        <StreakDisplay key={refreshWidget} />
+        {/* BARRE XP - Une seule fois */}
+        <XPBar key={refreshKey} />
 
-        <MotivationWidget key={refreshWidget} />
+        {/* STREAK - Une seule fois */}
+        <StreakDisplay key={refreshKey} />
+
+        <MotivationWidget key={refreshKey} />
 
         {items.length > 0 && (
           <button

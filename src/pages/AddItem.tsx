@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { addItem } from '../data/db'
+import { addXP } from '../data/xp'
 import Header from '../ui/Header'
 import { scheduleNotification, areNotificationsEnabled } from '../services/notifications'
 import { trackEvent } from '../services/analytics'
@@ -46,6 +47,9 @@ export default function AddItem() {
       barcode: barcode || undefined,
       imageUrl: imageUrl || undefined
     })
+
+    // Gagner XP pour ajout
+    await addXP('ITEM_ADDED', { name: name.trim(), category })
 
     // Track event
     trackEvent('item_added', {
