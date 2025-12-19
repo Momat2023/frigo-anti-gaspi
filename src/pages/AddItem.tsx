@@ -67,7 +67,7 @@ export default function AddItem() {
       scheduleNotification(newItem.id as number, newItem.name, expiresAtMs, notifDaysBefore)
     }
 
-    navigate('/home')
+    navigate('/')
   }
 
   return (
@@ -210,7 +210,7 @@ export default function AddItem() {
             
             <button
               type="button"
-              onClick={() => navigate('/home')}
+              onClick={() => navigate('/')}
               style={{
                 padding: '14px 24px',
                 backgroundColor: 'white',
