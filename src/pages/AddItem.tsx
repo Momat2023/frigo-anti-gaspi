@@ -64,7 +64,7 @@ export default function AddItem() {
       const notifDaysBefore = parseInt(
         localStorage.getItem('notification-days-before') || '1'
       )
-      scheduleNotification(newItem.id, newItem.name, expiresAtMs, notifDaysBefore)
+      scheduleNotification(newItem.id as number, newItem.name, expiresAtMs, notifDaysBefore)
     }
 
     navigate('/home')

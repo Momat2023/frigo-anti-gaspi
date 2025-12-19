@@ -1,70 +1,43 @@
-import { openDB } from 'idb'
-import type { DBSchema } from 'idb'
-import type { Item, Settings } from './types'
+import { openDB, type IDBPDatabase } from 'idb'
+import type { Item } from './types'
+import { syncData } from '../services/syncService'
 
-interface AppDB extends DBSchema {
-  items: {
-    key: number
-    value: Item
-  }
-  settings: {
-    key: string
-    value: Settings
-  }
-}
+const DB_NAME = 'frigo-safe'
+const STORE_NAME = 'items'
 
-const DB_NAME = 'frigo-anti-gaspi-db'
-const DB_VERSION = 1
-const SETTINGS_KEY = 'main'
-
-export async function getDb() {
-  return openDB<AppDB>(DB_NAME, DB_VERSION, {
+export async function getDb(): Promise<IDBPDatabase> {
+  return openDB(DB_NAME, 1, {
     upgrade(db) {
-      if (!db.objectStoreNames.contains('items')) {
-        db.createObjectStore('items', { keyPath: 'id', autoIncrement: true })
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true })
       }
-      if (!db.objectStoreNames.contains('settings')) {
-        db.createObjectStore('settings', { keyPath: 'id' })
-      }
-    }
+    },
   })
 }
 
 export async function addItem(item: Omit<Item, 'id'>): Promise<Item> {
   const db = await getDb()
-  const id = await db.add('items', {
-    ...item,
-    id: Date.now()
-  } as Item)
+  const id = await db.add(STORE_NAME, item)
   
-  const newItem = await db.get('items', id)
-  return newItem!
+  // Forcer la sync cloud
+  syncData()
+  
+  return { ...item, id: id as number }
 }
 
-export async function getSettings(): Promise<Settings> {
+export async function getAllItems(): Promise<Item[]> {
   const db = await getDb()
-  let settings = await db.get('settings', SETTINGS_KEY)
-  
-  if (!settings) {
-    settings = {
-      id: SETTINGS_KEY,
-      notificationsEnabled: false
-    }
-    await db.put('settings', settings)
-  }
-  
-  return settings
+  return db.getAll(STORE_NAME)
 }
 
-export async function updateSettings(updates: Partial<Settings>): Promise<Settings> {
+export async function updateItem(item: Item) {
   const db = await getDb()
-  const current = await getSettings()
-  
-  const updated: Settings = {
-    ...current,
-    ...updates
-  }
-  
-  await db.put('settings', updated)
-  return updated
+  await db.put(STORE_NAME, item)
+  syncData()
+}
+
+export async function deleteItem(id: number) {
+  const db = await getDb()
+  await db.delete(STORE_NAME, id)
+  syncData()
 }

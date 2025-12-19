@@ -1,49 +1,19 @@
-import { getDb, getSettings } from './db'
-import type { Item, Settings } from './types'
+import { getDb } from './db'
 
-export type ExportData = {
-  version: number
-  exportedAt: number
-  items: Item[]
-  settings: Settings
-}
-
-export async function exportAllData(): Promise<ExportData> {
+export async function exportAllData() {
   const db = await getDb()
   const items = await db.getAll('items')
-  const settings = await getSettings()
-
-  return {
-    version: 1,
-    exportedAt: Date.now(),
+  
+  const data = {
     items,
-    settings
+    exportedAt: new Date().toISOString(),
+    version: '1.0.0'
   }
-}
-
-export function downloadJSON(data: ExportData, filename: string = 'frigo-backup.json') {
-  const json = JSON.stringify(data, null, 2)
-  const blob = new Blob([json], { type: 'application/json' })
+  
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = filename
+  a.download = `frigo-safe-export-${new Date().toISOString().split('T')[0]}.json`
   a.click()
-  URL.revokeObjectURL(url)
-}
-
-export async function clearAllData() {
-  const db = await getDb()
-  
-  // Supprimer tous les items
-  const items = await db.getAll('items')
-  for (const item of items) {
-    await db.delete('items', item.id)
-  }
-  
-  // Supprimer les settings
-  await db.delete('settings', 'main')
-  
-  // Nettoyer localStorage
-  localStorage.clear()
 }
