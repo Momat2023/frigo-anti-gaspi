@@ -7,11 +7,15 @@ import MotivationWidget from '../ui/MotivationWidget'
 import StreakDisplay from '../ui/StreakDisplay'
 import XPBar from '../ui/XPBar'
 import LevelUpModal from '../ui/LevelUpModal'
+import ChestButton from '../ui/ChestButton'
+import ChestModal from '../ui/ChestModal'
 import { useBadgeNotification } from '../hooks/useBadgeNotification'
 import { useLevelUp } from '../hooks/useLevelUp'
 import { Link, useNavigate } from 'react-router-dom'
 import { trackEvent } from '../services/analytics'
 import { addXP } from '../data/xp'
+import { getAvailableChest } from '../data/chests'
+import type { ChestType } from '../data/chests'
 
 function getUrgencyClass(item: Item) {
   const msTarget = item.openedAt + item.targetDays * 24 * 60 * 60 * 1000
@@ -30,6 +34,8 @@ export default function Home() {
   const { newBadge, dismissBadge, checkForNewBadges } = useBadgeNotification()
   const { levelUpData, dismissLevelUp, checkForLevelUp } = useLevelUp()
   const [refreshKey, setRefreshKey] = useState(0)
+  const [showChestModal, setShowChestModal] = useState(false)
+  const [chestType, setChestType] = useState<ChestType>('bronze')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -77,6 +83,20 @@ export default function Home() {
     setRefreshKey(prev => prev + 1)
   }
 
+  async function handleOpenChest() {
+    const available = await getAvailableChest()
+    if (available?.canOpen) {
+      setChestType(available.type)
+      setShowChestModal(true)
+    }
+  }
+
+  function handleChestClosed() {
+    setShowChestModal(false)
+    setRefreshKey(prev => prev + 1)
+    checkForLevelUp()
+  }
+
   function handleCookSuggestions() {
     const topUrgent = items.slice(0, 3)
     const ingredients = topUrgent.map(item => item.name)
@@ -109,14 +129,24 @@ export default function Home() {
           onClose={dismissLevelUp}
         />
       )}
+
+      {showChestModal && (
+        <ChestModal
+          chestType={chestType}
+          onClose={handleChestClosed}
+        />
+      )}
       
       <main style={{ padding: 12 }}>
         <h1 style={{ marginBottom: 16 }}>🏠 Mon Frigo</h1>
 
-        {/* BARRE XP - Une seule fois */}
+        {/* COFFRE QUOTIDIEN */}
+        <ChestButton onOpenChest={handleOpenChest} />
+
+        {/* BARRE XP */}
         <XPBar key={refreshKey} />
 
-        {/* STREAK - Une seule fois */}
+        {/* STREAK */}
         <StreakDisplay key={refreshKey} />
 
         <MotivationWidget key={refreshKey} />
