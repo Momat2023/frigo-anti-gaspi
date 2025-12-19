@@ -3,85 +3,83 @@ import { Link, useLocation } from 'react-router-dom'
 export default function Header() {
   const location = useLocation()
 
+  const navItems = [
+    { path: '/', label: '🏠', title: 'Accueil' },
+    { path: '/stats', label: '📊', title: 'Statistiques' },
+    { path: '/leaderboard', label: '🏆', title: 'Classement' },
+    { path: '/recipes', label: '🍳', title: 'Idées Recettes' },
+    { path: '/settings', label: '⚙️', title: 'Paramètres' },
+  ]
+
   return (
     <header style={{
-      backgroundColor: '#6366f1',
-      color: 'white',
       padding: '12px 16px',
-      marginBottom: 16,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+      backgroundColor: 'white',
+      borderBottom: '1px solid #e5e7eb',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      position: 'sticky',
+      top: 0,
+      zIndex: 100
     }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        maxWidth: 1200,
-        margin: '0 auto'
+      <Link to="/" style={{ 
+        textDecoration: 'none', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 8 
       }}>
-        <Link to="/home" style={{ color: 'white', textDecoration: 'none' }}>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>
-            🧊 Frigo Anti-Gaspi
-          </h1>
-        </Link>
+        <span style={{ fontSize: 24 }}>🧊</span>
+        <span style={{ 
+          fontWeight: 800, 
+          fontSize: 18, 
+          color: '#111',
+          letterSpacing: '-0.5px'
+        }}>
+          FRIGO <span style={{ color: '#10b981' }}>SAFE</span>
+        </span>
+      </Link>
 
-        <nav style={{ display: 'flex', gap: 16 }}>
+      <nav style={{ display: 'flex', gap: 4 }}>
+        {navItems.map((item) => (
           <Link
-            to="/home"
+            key={item.path}
+            to={item.path}
+            title={item.title}
             style={{
-              color: location.pathname === '/home' ? 'white' : 'rgba(255,255,255,0.7)',
+              width: 40,
+              height: 40,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: location.pathname === item.path ? '#f3f4f6' : 'transparent',
+              borderRadius: 10,
               textDecoration: 'none',
-              fontWeight: location.pathname === '/home' ? 600 : 400,
-              fontSize: 14
+              fontSize: 18,
+              transition: 'all 0.2s ease',
+              border: location.pathname === item.path ? '1px solid #e5e7eb' : '1px solid transparent'
             }}
           >
-            🏠
+            {item.label}
           </Link>
-          <Link
-            to="/scan"
-            style={{
-              color: location.pathname === '/scan' ? 'white' : 'rgba(255,255,255,0.7)',
-              textDecoration: 'none',
-              fontWeight: location.pathname === '/scan' ? 600 : 400,
-              fontSize: 14
-            }}
-          >
-            📷 Scan
-          </Link>
-          <Link
-            to="/add"
-            style={{
-              color: location.pathname === '/add' ? 'white' : 'rgba(255,255,255,0.7)',
-              textDecoration: 'none',
-              fontWeight: location.pathname === '/add' ? 600 : 400,
-              fontSize: 14
-            }}
-          >
-            ➕
-          </Link>
-          <Link
-            to="/stats"
-            style={{
-              color: location.pathname === '/stats' ? 'white' : 'rgba(255,255,255,0.7)',
-              textDecoration: 'none',
-              fontWeight: location.pathname === '/stats' ? 600 : 400,
-              fontSize: 14
-            }}
-          >
-            📊
-          </Link>
-          <Link
-            to="/settings"
-            style={{
-              color: location.pathname === '/settings' ? 'white' : 'rgba(255,255,255,0.7)',
-              textDecoration: 'none',
-              fontWeight: location.pathname === '/settings' ? 600 : 400,
-              fontSize: 14
-            }}
-          >
-            ⚙️
-          </Link>
-        </nav>
-      </div>
+        ))}
+      </nav>
+
+      <Link
+        to="/add"
+        style={{
+          padding: '8px 16px',
+          backgroundColor: '#10b981',
+          color: 'white',
+          borderRadius: 10,
+          textDecoration: 'none',
+          fontSize: 14,
+          fontWeight: 700,
+          boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.2)'
+        }}
+      >
+        + AJOUTER
+      </Link>
     </header>
   )
 }

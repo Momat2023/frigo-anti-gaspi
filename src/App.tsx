@@ -1,32 +1,37 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Home from './pages/Home'
 import AddItem from './pages/AddItem'
 import ItemDetail from './pages/ItemDetail'
-import Settings from './pages/Settings'
-import Scan from './pages/Scan'
-import Onboarding from './pages/Onboarding'
-import StatsPage from './pages/Stats'
+import Stats from './pages/Stats'
 import Recipes from './pages/Recipes'
-import AdminStats from './pages/AdminStats'
-import InstallPrompt from './ui/InstallPrompt'
+import Settings from './pages/Settings'
+import Leaderboard from './pages/Leaderboard'
+import Onboarding from './pages/Onboarding'
+import { initNotifications } from './services/notifications'
+import { useEffect } from 'react'
 
 export default function App() {
+  useEffect(() => {
+    // Initialisation des notifications intelligentes au démarrage
+    initNotifications()
+    
+    // Initialisation du thème
+    const savedTheme = localStorage.getItem('theme') || 'light'
+    document.body.className = savedTheme
+  }, [])
+
   return (
-    <BrowserRouter>
-      <InstallPrompt />
+    <Router>
       <Routes>
-        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/" element={<Home />} />
         <Route path="/onboarding" element={<Onboarding />} />
-        <Route path="/home" element={<Home />} />
-        <Route path="/scan" element={<Scan />} />
         <Route path="/add" element={<AddItem />} />
-        <Route path="/stats" element={<StatsPage />} />
-        <Route path="/recipes" element={<Recipes />} />
-        <Route path="/settings" element={<Settings />} />
         <Route path="/item/:id" element={<ItemDetail />} />
-        <Route path="/admin/stats" element={<AdminStats />} />
-        <Route path="*" element={<div style={{ padding: 12 }}>Not Found</div>} />
+        <Route path="/stats" element={<Stats />} />
+        <Route path="/recipes" element={<Recipes />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   )
 }
