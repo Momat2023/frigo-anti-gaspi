@@ -9,12 +9,14 @@ import XPBar from '../ui/XPBar'
 import LevelUpModal from '../ui/LevelUpModal'
 import ChestButton from '../ui/ChestButton'
 import ChestModal from '../ui/ChestModal'
+import NotificationPrompt from '../ui/NotificationPrompt'
 import { useBadgeNotification } from '../hooks/useBadgeNotification'
 import { useLevelUp } from '../hooks/useLevelUp'
 import { Link, useNavigate } from 'react-router-dom'
 import { trackEvent } from '../services/analytics'
 import { addXP } from '../data/xp'
 import { getAvailableChest } from '../data/chests'
+import { checkAndScheduleNotifications } from '../services/smartNotifications'
 import type { ChestType } from '../data/chests'
 
 function getUrgencyClass(item: Item) {
@@ -41,6 +43,12 @@ export default function Home() {
   useEffect(() => {
     load()
     trackEvent('page_view', { page: 'home' })
+    
+    // Enregistrer l'activité
+    localStorage.setItem('last-activity-date', Date.now().toString())
+    
+    // Vérifier et planifier les notifications intelligentes
+    checkAndScheduleNotifications()
   }, [])
 
   async function load() {
@@ -78,8 +86,15 @@ export default function Home() {
       daysBeforeExpiry: Math.ceil((item.openedAt + item.targetDays * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000))
     })
     
+    // Enregistrer l'activité
+    localStorage.setItem('last-activity-date', Date.now().toString())
+    
     await checkForNewBadges()
     await checkForLevelUp()
+    
+    // Re-vérifier les notifications
+    checkAndScheduleNotifications()
+    
     setRefreshKey(prev => prev + 1)
   }
 
@@ -139,6 +154,9 @@ export default function Home() {
       
       <main style={{ padding: 12 }}>
         <h1 style={{ marginBottom: 16 }}>🏠 Mon Frigo</h1>
+
+        {/* PROMPT NOTIFICATIONS */}
+        <NotificationPrompt />
 
         {/* COFFRE QUOTIDIEN */}
         <ChestButton onOpenChest={handleOpenChest} />
