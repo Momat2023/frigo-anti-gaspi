@@ -10,7 +10,14 @@ import type { Category, Location } from '../data/types'
 export default function AddItem() {
   const navigate = useNavigate()
   const location = useLocation()
-  const state = location.state as any
+  const state = location.state as {
+    name?: string
+    category?: Category
+    expiresAt?: string
+    location?: Location
+    barcode?: string
+    imageUrl?: string
+  } | null
 
   const [name, setName] = useState(state?.name || '')
   const [category, setCategory] = useState<Category>(state?.category || 'Autre')
@@ -48,10 +55,8 @@ export default function AddItem() {
       imageUrl: imageUrl || undefined
     })
 
-    // Gagner XP pour ajout
     await addXP('ITEM_ADDED', { name: name.trim(), category })
 
-    // Track event
     trackEvent('item_added', {
       method: barcode ? 'scan' : 'manual',
       category,
@@ -59,7 +64,6 @@ export default function AddItem() {
       hasBarcode: !!barcode
     })
 
-    // Programmer une notification si activées
     if (areNotificationsEnabled()) {
       const notifDaysBefore = parseInt(
         localStorage.getItem('notification-days-before') || '1'
@@ -77,34 +81,37 @@ export default function AddItem() {
         <h1 style={{ marginBottom: 24 }}>➕ Ajouter un aliment</h1>
 
         {barcode && (
-          <div style={{
-            padding: 12,
-            backgroundColor: '#eff6ff',
-            border: '1px solid #93c5fd',
-            borderRadius: 8,
-            marginBottom: 16,
-            fontSize: 14
-          }}>
+          <div
+            style={{
+              padding: 12,
+              backgroundColor: '#eff6ff',
+              border: '1px solid #93c5fd',
+              borderRadius: 8,
+              marginBottom: 16,
+              fontSize: 14,
+            }}
+          >
             <strong>Code-barres:</strong> {barcode}
           </div>
         )}
 
         {imageUrl && (
           <div style={{ marginBottom: 16, textAlign: 'center' }}>
-            <img 
-              src={imageUrl} 
+            <img
+              src={imageUrl}
               alt="Produit"
-              style={{ 
-                maxWidth: 150, 
+              style={{
+                maxWidth: 150,
                 height: 'auto',
                 borderRadius: 8,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
               }}
             />
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
+          {/* Nom */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
               Nom *
@@ -120,11 +127,12 @@ export default function AddItem() {
                 padding: 12,
                 borderRadius: 8,
                 border: '1px solid #d1d5db',
-                fontSize: 16
+                fontSize: 16,
               }}
             />
           </div>
 
+          {/* Catégorie */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
               Catégorie
@@ -137,7 +145,7 @@ export default function AddItem() {
                 padding: 12,
                 borderRadius: 8,
                 border: '1px solid #d1d5db',
-                fontSize: 16
+                fontSize: 16,
               }}
             >
               <option>Fruits & Légumes</option>
@@ -150,6 +158,7 @@ export default function AddItem() {
             </select>
           </div>
 
+          {/* Date de péremption */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
               Date de péremption *
@@ -164,11 +173,12 @@ export default function AddItem() {
                 padding: 12,
                 borderRadius: 8,
                 border: '1px solid #d1d5db',
-                fontSize: 16
+                fontSize: 16,
               }}
             />
           </div>
 
+          {/* Emplacement */}
           <div style={{ marginBottom: 24 }}>
             <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
               Emplacement
@@ -181,7 +191,7 @@ export default function AddItem() {
                 padding: 12,
                 borderRadius: 8,
                 border: '1px solid #d1d5db',
-                fontSize: 16
+                fontSize: 16,
               }}
             >
               <option>Frigo</option>
@@ -190,6 +200,7 @@ export default function AddItem() {
             </select>
           </div>
 
+          {/* Boutons */}
           <div style={{ display: 'flex', gap: 12 }}>
             <button
               type="submit"
@@ -202,12 +213,12 @@ export default function AddItem() {
                 borderRadius: 8,
                 fontSize: 16,
                 fontWeight: 600,
-                cursor: 'pointer'
+                cursor: 'pointer',
               }}
             >
               Ajouter
             </button>
-            
+
             <button
               type="button"
               onClick={() => navigate('/')}
@@ -218,7 +229,7 @@ export default function AddItem() {
                 border: '1px solid #d1d5db',
                 borderRadius: 8,
                 fontSize: 16,
-                cursor: 'pointer'
+                cursor: 'pointer',
               }}
             >
               Annuler

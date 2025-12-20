@@ -9,22 +9,24 @@ import Settings from './pages/Settings'
 import Leaderboard from './pages/Leaderboard'
 import Onboarding from './pages/Onboarding'
 import Auth from './pages/Auth'
+import Scan from './pages/Scan'
+import Header from './components/Header'
 import { initNotifications } from './services/notifications'
 import { initSyncOnReconnect, syncData } from './services/syncService'
 
 export default function App() {
   useEffect(() => {
-    // Initialisations
     initNotifications()
     initSyncOnReconnect()
-    syncData() // Sync au chargement
-    
+    syncData()
+
     const savedTheme = localStorage.getItem('theme') || 'light'
     document.body.className = savedTheme
   }, [])
 
   return (
     <Router>
+      <Header />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/onboarding" element={<Onboarding />} />
@@ -35,6 +37,7 @@ export default function App() {
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/scan" element={<Scan />} />
       </Routes>
     </Router>
   )
