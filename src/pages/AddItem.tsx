@@ -13,43 +13,66 @@ export default function AddItem() {
   const state = location.state as {
     name?: string
     category?: Category
-    expiresAt?: string
-    location?: Location
     barcode?: string
     imageUrl?: string
   } | null
 
   const [name, setName] = useState(state?.name || '')
   const [category, setCategory] = useState<Category>(state?.category || 'Autre')
-  const [expiresAt, setExpiresAt] = useState(state?.expiresAt || '')
-  const [itemLocation, setItemLocation] = useState<Location>(state?.location || 'Frigo')
+  const [openedAt, setOpenedAt] = useState(new Date().toISOString().split('T')[0])
+  const [expiresAt, setExpiresAt] = useState('')
+  const [itemLocation, setItemLocation] = useState<Location>('Frigo')
   const [barcode] = useState(state?.barcode || '')
   const [imageUrl] = useState(state?.imageUrl || '')
+
+  // Durées conseillées par catégorie (jours après ouverture)
+  const defaultDurations: Record<Category, number> = {
+    'Fruits & Légumes': 5,
+    'Viandes & Poissons': 3,
+    'Produits laitiers': 4,
+    'Boissons': 30,
+    'Conserves': 30,
+    'Surgelés': 60,
+    'Autre': 7
+  }
 
   useEffect(() => {
     trackEvent('page_view', { page: 'add_item' })
     
-    if (!expiresAt) {
-      const future = new Date()
-      future.setDate(future.getDate() + 7)
-      setExpiresAt(future.toISOString().split('T')[0])
+    if (state?.barcode && !name) {
+      setName(`Produit scanné (${state.barcode})`)
     }
-  }, [expiresAt])
+    
+    calculateDefaultExpiry()
+  }, [])
+
+  useEffect(() => {
+    calculateDefaultExpiry()
+  }, [category, openedAt])
+
+  const calculateDefaultExpiry = () => {
+    if (!expiresAt) {
+      const days = defaultDurations[category] || 7
+      const opened = new Date(openedAt)
+      const expires = new Date(opened.getTime() + days * 24 * 60 * 60 * 1000)
+      setExpiresAt(expires.toISOString().split('T')[0])
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
 
     const expiresAtMs = new Date(expiresAt).getTime()
-    const now = Date.now()
+    const openedAtMs = new Date(openedAt).getTime()
     
     const newItem = await addItem({
       name: name.trim(),
       category,
-      openedAt: now,
+      openedAt: openedAtMs,
       expiresAt: expiresAtMs,
       location: itemLocation,
-      targetDays: Math.ceil((expiresAtMs - now) / (24 * 60 * 60 * 1000)),
+      targetDays: Math.ceil((expiresAtMs - openedAtMs) / (24 * 60 * 60 * 1000)),
       status: 'active',
       barcode: barcode || undefined,
       imageUrl: imageUrl || undefined
@@ -60,14 +83,11 @@ export default function AddItem() {
     trackEvent('item_added', {
       method: barcode ? 'scan' : 'manual',
       category,
-      location: itemLocation,
-      hasBarcode: !!barcode
+      daysFromOpen: Math.ceil((expiresAtMs - openedAtMs) / (24 * 60 * 60 * 1000))
     })
 
     if (areNotificationsEnabled()) {
-      const notifDaysBefore = parseInt(
-        localStorage.getItem('notification-days-before') || '1'
-      )
+      const notifDaysBefore = parseInt(localStorage.getItem('notification-days-before') || '1')
       scheduleNotification(newItem.id as number, newItem.name, expiresAtMs, notifDaysBefore)
     }
 
@@ -81,37 +101,18 @@ export default function AddItem() {
         <h1 style={{ marginBottom: 24 }}>➕ Ajouter un aliment</h1>
 
         {barcode && (
-          <div
-            style={{
-              padding: 12,
-              backgroundColor: '#eff6ff',
-              border: '1px solid #93c5fd',
-              borderRadius: 8,
-              marginBottom: 16,
-              fontSize: 14,
-            }}
-          >
-            <strong>Code-barres:</strong> {barcode}
-          </div>
-        )}
-
-        {imageUrl && (
-          <div style={{ marginBottom: 16, textAlign: 'center' }}>
-            <img
-              src={imageUrl}
-              alt="Produit"
-              style={{
-                maxWidth: 150,
-                height: 'auto',
-                borderRadius: 8,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-              }}
-            />
+          <div style={{
+            padding: 12,
+            backgroundColor: '#eff6ff',
+            border: '1px solid #93c5fd',
+            borderRadius: 8,
+            marginBottom: 16
+          }}>
+            <strong>📱 Code scanné :</strong> {barcode}
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
-          {/* Nom */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
               Nom *
@@ -120,19 +121,18 @@ export default function AddItem() {
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Ex: Yaourt nature"
+              placeholder="Ex: Lait ouvert hier"
               required
               style={{
                 width: '100%',
                 padding: 12,
                 borderRadius: 8,
                 border: '1px solid #d1d5db',
-                fontSize: 16,
+                fontSize: 16
               }}
             />
           </div>
 
-          {/* Catégorie */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
               Catégorie
@@ -145,7 +145,7 @@ export default function AddItem() {
                 padding: 12,
                 borderRadius: 8,
                 border: '1px solid #d1d5db',
-                fontSize: 16,
+                fontSize: 16
               }}
             >
               <option>Fruits & Légumes</option>
@@ -158,10 +158,28 @@ export default function AddItem() {
             </select>
           </div>
 
-          {/* Date de péremption */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
-              Date de péremption *
+              📅 Date d'ouverture *
+            </label>
+            <input
+              type="date"
+              value={openedAt}
+              onChange={e => setOpenedAt(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: 12,
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 16
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+              Durée conseillée : <strong>{defaultDurations[category] || 7} jours</strong>
             </label>
             <input
               type="date"
@@ -173,12 +191,11 @@ export default function AddItem() {
                 padding: 12,
                 borderRadius: 8,
                 border: '1px solid #d1d5db',
-                fontSize: 16,
+                fontSize: 16
               }}
             />
           </div>
 
-          {/* Emplacement */}
           <div style={{ marginBottom: 24 }}>
             <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
               Emplacement
@@ -191,7 +208,7 @@ export default function AddItem() {
                 padding: 12,
                 borderRadius: 8,
                 border: '1px solid #d1d5db',
-                fontSize: 16,
+                fontSize: 16
               }}
             >
               <option>Frigo</option>
@@ -200,7 +217,6 @@ export default function AddItem() {
             </select>
           </div>
 
-          {/* Boutons */}
           <div style={{ display: 'flex', gap: 12 }}>
             <button
               type="submit"
@@ -213,12 +229,12 @@ export default function AddItem() {
                 borderRadius: 8,
                 fontSize: 16,
                 fontWeight: 600,
-                cursor: 'pointer',
+                cursor: 'pointer'
               }}
             >
               Ajouter
             </button>
-
+            
             <button
               type="button"
               onClick={() => navigate('/')}
@@ -229,7 +245,7 @@ export default function AddItem() {
                 border: '1px solid #d1d5db',
                 borderRadius: 8,
                 fontSize: 16,
-                cursor: 'pointer',
+                cursor: 'pointer'
               }}
             >
               Annuler
